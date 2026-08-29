@@ -9,7 +9,7 @@ from aiohttp import ConnectionTimeoutError
 from aiosonos.api.models import MusicService
 from aiosonos.api.models import PlayBackState as SonosPlayBackState
 from aiosonos.exceptions import CannotConnect, FailedCommand
-from music_assistant_models.enums import PlaybackState
+from music_assistant_models.enums import PlaybackState, PlayerFeature
 from music_assistant_models.player import PlayerMedia
 
 from music_assistant.constants import EXTERNAL_PAUSE_IDLE_TIMEOUT
@@ -26,9 +26,11 @@ def _bind_player(mass: MusicAssistant | MagicMock) -> tuple[SonosPlayer, MagicMo
     player.mass = mass
     player.logger = logging.getLogger("test.sonos.player")
     player._player_id = "sonos_player"
+    player._attr_supported_features = {PlayerFeature.ENQUEUE}
     player._listen_task = None
     player.connected = False
     player.client = client
+    player._cache = {}
     player._on_unload_callbacks = []
     player.update_state = MagicMock()  # type: ignore[misc, method-assign]
     return player, client

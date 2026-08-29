@@ -400,7 +400,8 @@ class SonosPlayer(Player):
         }
         if media.image_url:
             provider = cast("SonosPlayerProvider", self.provider)
-            container["imageUrl"] = provider.get_sonos_artwork_url(media.image_url)
+            if image_url := provider.get_sonos_artwork_url(media.image_url):
+                container["imageUrl"] = image_url
         await self.group_controller.play_stream_url(stream_url, container)
 
     async def select_source(self, source: str) -> None:
