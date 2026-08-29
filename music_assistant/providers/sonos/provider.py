@@ -8,7 +8,9 @@ https://github.com/music-assistant/aiosonos
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any, cast
+from urllib.parse import urlsplit, urlunsplit
 
 from aiohttp import web
 from aiohttp.client_exceptions import ClientError
@@ -27,6 +29,7 @@ from music_assistant.helpers.audio import get_mime_type
 from music_assistant.helpers.json import SerializableType
 from music_assistant.models.player_provider import PlayerProvider
 
+from .const import CONF_ARTWORK_HTTPS_BASE_URL, CONF_ENTRY_ARTWORK_HTTPS_BASE_URL
 from .helpers import get_primary_ip_address
 from .player import SonosPlayer
 
@@ -39,16 +42,20 @@ if TYPE_CHECKING:
 class SonosPlayerProvider(PlayerProvider):
     """Sonos Player provider."""
 
+    _artwork_https_base_url: str | None
     _ignored_disabled_players: set[str]
     _pending_setup_tasks: set[str]
     _unloaded: bool
 
     async def get_config_entries(self) -> tuple[ConfigEntry, ...]:
         """Return Config entries to setup this provider."""
-        return (CONF_ENTRY_MANUAL_DISCOVERY_IPS,)
+        return (CONF_ENTRY_MANUAL_DISCOVERY_IPS, CONF_ENTRY_ARTWORK_HTTPS_BASE_URL)
 
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
+        self._artwork_https_base_url = _normalize_artwork_https_base_url(
+            self.config.get_value(CONF_ARTWORK_HTTPS_BASE_URL)
+        )
         self._ignored_disabled_players = set()
         self._pending_setup_tasks = set()
         self._unloaded = False
@@ -367,7 +374,7 @@ class SonosPlayerProvider(PlayerProvider):
                 "contentType": get_mime_type(media.uri.split(".")[-1]),
                 "service": {"name": "Music Assistant", "id": "mass"},
                 "name": media.title,
-                "imageUrl": media.image_url,
+                "imageUrl": self.get_sonos_artwork_url(media.image_url),
                 "durationMillis": int(duration * 1000) if duration else 0,
                 "artist": {
                     "name": media.artist,
@@ -381,3 +388,62 @@ class SonosPlayerProvider(PlayerProvider):
                 else None,
             },
         }
+
+    def get_sonos_artwork_url(self, image_url: str | None) -> str | None:
+        """Return the optional HTTPS proxy URL for a Music Assistant artwork URL."""
+        return _rewrite_imageproxy_url(
+            image_url,
+            self._artwork_https_base_url,
+            self.mass.streams.base_url,
+        )
+
+
+_IMAGEPROXY_PATH = re.compile(r"(?:^|/)imageproxy/([0-9a-fA-F]{64})$")
+
+
+def _normalize_artwork_https_base_url(value: object) -> str | None:
+    """Validate and normalize the optional Sonos artwork HTTPS base URL."""
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        raise TypeError("Artwork HTTPS base URL must be a string")
+    raw = value.strip()
+    if not raw:
+        return None
+    if any(char.isspace() or not char.isprintable() for char in raw):
+        raise ValueError("Artwork HTTPS base URL contains invalid whitespace")
+    try:
+        parsed = urlsplit(raw)
+        hostname = parsed.hostname
+        _ = parsed.port
+    except ValueError as err:
+        raise ValueError(f"Artwork HTTPS base URL is malformed: {err}") from err
+    if parsed.scheme != "https":
+        raise ValueError("Artwork HTTPS base URL must start with https://")
+    if not hostname:
+        raise ValueError("Artwork HTTPS base URL must contain a hostname")
+    if parsed.username or parsed.password:
+        raise ValueError("Artwork HTTPS base URL must not contain credentials")
+    if parsed.query or parsed.fragment:
+        raise ValueError("Artwork HTTPS base URL must not contain a query or fragment")
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path.rstrip("/"), "", ""))
+
+
+def _rewrite_imageproxy_url(
+    image_url: str | None,
+    base_url: str | None,
+    mass_streams_base_url: str,
+) -> str | None:
+    """Rewrite a valid MA imageproxy URL, leaving every other image URL unchanged."""
+    if not image_url or not base_url:
+        return image_url
+    try:
+        image = urlsplit(image_url)
+        mass_streams = urlsplit(mass_streams_base_url)
+    except ValueError:
+        return image_url
+    if (image.scheme, image.netloc) != (mass_streams.scheme, mass_streams.netloc):
+        return image_url
+    if not (match := _IMAGEPROXY_PATH.search(image.path)):
+        return image_url
+    return f"{base_url}/{match.group(1)}"

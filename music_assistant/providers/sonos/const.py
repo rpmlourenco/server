@@ -3,9 +3,24 @@
 from __future__ import annotations
 
 from aiosonos.api.models import PlayBackState as SonosPlayBackState
-from music_assistant_models.enums import PlaybackState, PlayerFeature
+from music_assistant_models.config_entries import ConfigEntry
+from music_assistant_models.enums import ConfigEntryType, PlaybackState, PlayerFeature
 
 from music_assistant.models.player import PlayerSource
+
+CONF_ARTWORK_HTTPS_BASE_URL = "artwork_https_base_url"
+CONF_ENTRY_ARTWORK_HTTPS_BASE_URL = ConfigEntry(
+    key=CONF_ARTWORK_HTTPS_BASE_URL,
+    type=ConfigEntryType.STRING,
+    label="Artwork HTTPS base URL",
+    description=(
+        "Optional HTTPS endpoint used only for Music Assistant artwork sent to Sonos. "
+        "Leave empty to keep the default image URLs."
+    ),
+    default_value="",
+    required=False,
+    advanced=True,
+)
 
 PLAYBACK_STATE_MAP = {
     SonosPlayBackState.PLAYBACK_STATE_BUFFERING: PlaybackState.PLAYING,
