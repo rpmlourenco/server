@@ -12,11 +12,6 @@ CONF_ARTWORK_HTTPS_BASE_URL = "artwork_https_base_url"
 CONF_ENTRY_ARTWORK_HTTPS_BASE_URL = ConfigEntry(
     key=CONF_ARTWORK_HTTPS_BASE_URL,
     type=ConfigEntryType.STRING,
-    label="Artwork HTTPS base URL",
-    description=(
-        "Optional HTTPS endpoint used only for Music Assistant artwork sent to Sonos. "
-        "Leave empty to keep the default image URLs."
-    ),
     default_value="",
     required=False,
     advanced=True,

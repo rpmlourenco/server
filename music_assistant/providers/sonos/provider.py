@@ -171,6 +171,14 @@ class SonosPlayerProvider(PlayerProvider):
         self._pending_setup_tasks.add(task_id)
         self.mass.call_later(5, self._setup_player, player_id, name, info, task_id=task_id)
 
+    def get_sonos_artwork_url(self, image_url: str | None) -> str | None:
+        """Return the optional HTTPS proxy URL for a Music Assistant artwork URL."""
+        return _rewrite_imageproxy_url(
+            image_url,
+            self._artwork_https_base_url,
+            self.mass.streams.base_url,
+        )
+
     def _set_aiosonos_log_level(self) -> None:
         """Align aiosonos's log level with the provider's log level."""
         # aiosonos is very chatty at debug level, so only pass through its
@@ -388,14 +396,6 @@ class SonosPlayerProvider(PlayerProvider):
                 else None,
             },
         }
-
-    def get_sonos_artwork_url(self, image_url: str | None) -> str | None:
-        """Return the optional HTTPS proxy URL for a Music Assistant artwork URL."""
-        return _rewrite_imageproxy_url(
-            image_url,
-            self._artwork_https_base_url,
-            self.mass.streams.base_url,
-        )
 
 
 _IMAGEPROXY_PATH = re.compile(r"(?:^|/)imageproxy/([0-9a-fA-F]{64})$")
