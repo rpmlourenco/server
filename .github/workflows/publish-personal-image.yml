@@ -1,0 +1,86 @@
+name: Publish personal Music Assistant image
+
+on:
+  push:
+    branches:
+      - sonos-https-artwork
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to deploy through the Home Assistant add-on (for example 2.10.1.dev1)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: personal-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Build and publish ARM64 image
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/server
+      IMAGE_TAG: ${{ inputs.version || 'edge' }}
+      PACKAGE_VERSION: ${{ inputs.version || format('0.0.0.dev{0}', github.run_number) }}
+      BASE_IMAGE_VERSION: "1.6.3"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: true
+
+      - name: Install build dependencies
+        run: python -m pip install build tomli tomli-w
+
+      - name: Set package version
+        shell: python
+        run: |
+          import os
+          import tomli
+          import tomli_w
+
+          with open("pyproject.toml", "rb") as file_handle:
+              pyproject = tomli.load(file_handle)
+          pyproject["project"]["version"] = os.environ["PACKAGE_VERSION"]
+          with open("pyproject.toml", "wb") as file_handle:
+              tomli_w.dump(pyproject, file_handle)
+
+      - name: Build wheel
+        run: python -m build --wheel
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Build and publish image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          build-args: |
+            MASS_VERSION=${{ env.PACKAGE_VERSION }}
+            BASE_IMAGE_VERSION=${{ env.BASE_IMAGE_VERSION }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ env.PACKAGE_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
