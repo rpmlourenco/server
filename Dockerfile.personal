@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+
+ARG UPSTREAM_VERSION=2.10.1
+FROM ghcr.io/music-assistant/server:${UPSTREAM_VERSION}
+
+ARG PERSONAL_VERSION
+
+# Keep the official Music Assistant image, including its bundled app credentials,
+# and replace only the files that implement the Sonos HTTPS artwork extension.
+COPY music_assistant/providers/sonos/const.py /tmp/ma-sonos-patch/providers/sonos/const.py
+COPY music_assistant/providers/sonos/player.py /tmp/ma-sonos-patch/providers/sonos/player.py
+COPY music_assistant/providers/sonos/provider.py /tmp/ma-sonos-patch/providers/sonos/provider.py
+COPY music_assistant/providers/sonos/strings.json /tmp/ma-sonos-patch/providers/sonos/strings.json
+COPY music_assistant/translations/en.json /tmp/ma-sonos-patch/translations/en.json
+
+USER root
+RUN set -eu; \
+    SITE_PACKAGES="$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')"; \
+    test -s "${SITE_PACKAGES}/music_assistant/helpers/app_secrets.json"; \
+    python -c 'from music_assistant.helpers.app_vars import app_var; assert app_var("theaudiodb_api_key"); assert app_var("fanarttv_api_key")'; \
+    install -m 644 /tmp/ma-sonos-patch/providers/sonos/const.py "${SITE_PACKAGES}/music_assistant/providers/sonos/const.py"; \
+    install -m 644 /tmp/ma-sonos-patch/providers/sonos/player.py "${SITE_PACKAGES}/music_assistant/providers/sonos/player.py"; \
+    install -m 644 /tmp/ma-sonos-patch/providers/sonos/provider.py "${SITE_PACKAGES}/music_assistant/providers/sonos/provider.py"; \
+    install -m 644 /tmp/ma-sonos-patch/providers/sonos/strings.json "${SITE_PACKAGES}/music_assistant/providers/sonos/strings.json"; \
+    install -m 644 /tmp/ma-sonos-patch/translations/en.json "${SITE_PACKAGES}/music_assistant/translations/en.json"; \
+    rm -rf /tmp/ma-sonos-patch; \
+    python -m compileall -q "${SITE_PACKAGES}/music_assistant/providers/sonos"
+
+LABEL \
+    io.hass.version="${PERSONAL_VERSION}" \
+    org.opencontainers.image.version="${PERSONAL_VERSION}"
