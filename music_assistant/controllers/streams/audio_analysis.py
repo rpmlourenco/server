@@ -1131,10 +1131,12 @@ class AudioAnalysisController:
         if not isinstance(streamdetails.path, str) or not streamdetails.path:
             return
 
-        # Override content_type so ffmpeg decodes rather than re-muxing the source codec.
+        # Providers consume decoded PCM, not the source codec. Clear the decoder override
+        # as well, or their ffmpeg processes will try to decode PCM as compressed audio.
         pcm_format = dataclasses.replace(
             streamdetails.audio_format,
             content_type=ContentType.from_bit_depth(streamdetails.audio_format.bit_depth),
+            codec_type=ContentType.UNKNOWN,
         )
 
         accepted = await self._start_analysis_on_providers(

@@ -80,10 +80,14 @@ ARG UPSTREAM_VERSION=2.10.1
 FROM ghcr.io/music-assistant/server:${UPSTREAM_VERSION}
 ```
 
-It then copies only the five modified Sonos provider and translation files into
-the existing Python installation. The final image therefore retains all
-components and dependencies from the official distribution and replaces only
-the implementation required for Sonos HTTPS artwork.
+It then copies the five modified Sonos provider and translation files, plus
+`music_assistant/controllers/streams/audio_analysis.py`, into the existing Python
+installation. The analysis fix clears the source codec override when preparing
+decoded PCM for background analysis, preventing loudness analysis from decoding
+PCM as FLAC (or another compressed codec). It is included from `2.10.1.dev3`.
+The final image retains the components and dependencies of the official distribution.
+When upgrading the base version, review this analysis file against upstream too;
+drop this extra copy once the official image includes the fix.
 
 The workflow publishes an ARM64 image under this name:
 

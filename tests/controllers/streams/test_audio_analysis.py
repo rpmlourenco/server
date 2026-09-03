@@ -32,6 +32,7 @@ from music_assistant.controllers.streams.audio_analysis import (
     _merged_from_rows,
 )
 from music_assistant.controllers.streams.audio_buffer import AudioBufferEOF
+from music_assistant.helpers.ffmpeg import get_ffmpeg_args
 from music_assistant.helpers.json import json_dumps
 from music_assistant.models.audio_analysis import AudioAnalysisData
 from music_assistant.models.audio_analysis_provider import (
@@ -242,6 +243,57 @@ def _make_stream_mock(chunks: list[bytes]) -> object:
             yield chunk
 
     return _stream
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "codec", [ContentType.FLAC, ContentType.MP3, ContentType.AAC, ContentType.UNKNOWN]
+)
+@pytest.mark.parametrize("bit_depth", [16, 24, 32])
+async def test_background_streaming_uses_pcm_decoder(codec: ContentType, bit_depth: int) -> None:
+    """Analysis receives PCM without inheriting the compressed source decoder."""
+    controller = _make_controller()
+    streamdetails = _make_streamdetails(path="/music/test.flac")
+    source_format = AudioFormat(
+        content_type=codec,
+        codec_type=codec,
+        sample_rate=48000,
+        bit_depth=bit_depth,
+        channels=2,
+    )
+    streamdetails.audio_format = source_format
+    providers = [
+        _make_aa_provider("loudness", available=True),
+        _make_aa_provider("smart_fades", available=True),
+    ]
+    for provider in providers:
+        provider.start_analysis = AsyncMock(return_value=True)
+    stream = MagicMock(side_effect=_make_stream_mock([]))
+    controller.mass.streams.audio.get_media_stream = stream
+
+    await controller._run_background_streaming_inner(streamdetails.uri, streamdetails, providers)
+
+    pcm_format = stream.call_args.args[1]
+    expected_pcm = ContentType.from_bit_depth(bit_depth)
+    assert pcm_format.content_type == expected_pcm
+    assert pcm_format.codec_type == ContentType.UNKNOWN
+    assert (pcm_format.sample_rate, pcm_format.bit_depth, pcm_format.channels) == (
+        48000,
+        bit_depth,
+        2,
+    )
+    assert pcm_format is not source_format
+    assert source_format.content_type == codec
+    assert source_format.codec_type == codec
+    for provider in providers:
+        assert provider.start_analysis.await_args.kwargs["audio_format"] is pcm_format
+
+    args = get_ffmpeg_args(
+        pcm_format, pcm_format, ["ebur128=framelog=verbose:peak=true"], output_path="NULL"
+    )
+    input_args = args[: args.index("-i")]
+    decoders = [input_args[i + 1] for i, arg in enumerate(input_args) if arg == "-acodec"]
+    assert decoders == [expected_pcm.name.lower()]
 
 
 @pytest.mark.asyncio

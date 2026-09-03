@@ -6,7 +6,8 @@ FROM ghcr.io/music-assistant/server:${UPSTREAM_VERSION}
 ARG PERSONAL_VERSION
 
 # Keep the official Music Assistant image, including its bundled app credentials,
-# and replace only the files that implement the Sonos HTTPS artwork extension.
+# and replace only the Sonos HTTPS artwork files and background analysis fix.
+COPY music_assistant/controllers/streams/audio_analysis.py /tmp/ma-sonos-patch/controllers/streams/audio_analysis.py
 COPY music_assistant/providers/sonos/const.py /tmp/ma-sonos-patch/providers/sonos/const.py
 COPY music_assistant/providers/sonos/player.py /tmp/ma-sonos-patch/providers/sonos/player.py
 COPY music_assistant/providers/sonos/provider.py /tmp/ma-sonos-patch/providers/sonos/provider.py
@@ -23,8 +24,9 @@ RUN set -eu; \
     install -m 644 /tmp/ma-sonos-patch/providers/sonos/provider.py "${SITE_PACKAGES}/music_assistant/providers/sonos/provider.py"; \
     install -m 644 /tmp/ma-sonos-patch/providers/sonos/strings.json "${SITE_PACKAGES}/music_assistant/providers/sonos/strings.json"; \
     install -m 644 /tmp/ma-sonos-patch/translations/en.json "${SITE_PACKAGES}/music_assistant/translations/en.json"; \
+    install -m 644 /tmp/ma-sonos-patch/controllers/streams/audio_analysis.py "${SITE_PACKAGES}/music_assistant/controllers/streams/audio_analysis.py"; \
     rm -rf /tmp/ma-sonos-patch; \
-    python -m compileall -q "${SITE_PACKAGES}/music_assistant/providers/sonos"
+    python -m compileall -q "${SITE_PACKAGES}/music_assistant/providers/sonos" "${SITE_PACKAGES}/music_assistant/controllers/streams/audio_analysis.py"
 
 LABEL \
     io.hass.version="${PERSONAL_VERSION}" \
