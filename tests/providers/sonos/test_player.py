@@ -15,7 +15,7 @@ from music_assistant_models.player import PlayerMedia
 from music_assistant.constants import EXTERNAL_PAUSE_IDLE_TIMEOUT
 from music_assistant.mass import MusicAssistant
 from music_assistant.providers.sonos.const import SOURCE_SPOTIFY
-from music_assistant.providers.sonos.player import SonosPlayer, SonosQueue
+from music_assistant.providers.sonos.player import SonosPlayer
 
 
 def _bind_player(mass: MusicAssistant | MagicMock) -> tuple[SonosPlayer, MagicMock]:
@@ -59,7 +59,10 @@ async def test_play_stream_url_rewrites_artwork_but_not_audio() -> None:
     player._provider = provider
     player._config = MagicMock()
     player._config.get_value.return_value = False
-    player.sonos_queue = SonosQueue()
+    player.cloud_queue_id = None
+    player.cloud_queue_version = 0
+    player.cloud_queue_item_generation = 0
+    player._announcement_media = None
     client.player.is_passive = False
     client.player.group.play_stream_url = AsyncMock()
     media = PlayerMedia(

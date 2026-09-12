@@ -28,6 +28,7 @@ def _bind_provider(mass: MusicAssistant | MagicMock) -> SonosPlayerProvider:
     provider.logger = logging.getLogger("test.sonos.discovery")
     provider._ignored_disabled_players = set()
     provider._pending_setup_tasks = set()
+    provider._pending_refresh_tasks = set()
     provider._unloaded = False
     provider._artwork_https_base_url = None
     return provider
@@ -127,7 +128,7 @@ def test_cloud_queue_rewrites_artwork_but_not_audio() -> None:
         image_url=f"http://192.168.0.143:8097/imageproxy/{image_id}?size=512",
     )
 
-    track = provider._parse_sonos_queue_item(media)["track"]
+    track = provider._parse_sonos_queue_item(MagicMock(), media, 1)["track"]
 
     assert track["mediaUrl"] == audio_url
     assert track["imageUrl"] == f"https://example.com/ma-sonos-artwork/{image_id}"

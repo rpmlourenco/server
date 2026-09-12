@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to deploy through the Home Assistant add-on (for example 2.10.1.dev1)"
+        description: "Version to deploy through the Home Assistant add-on (for example 2.10.3.dev1)"
         required: true
         type: string
 
@@ -26,7 +26,7 @@ jobs:
     env:
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/server
       IMAGE_TAG: ${{ inputs.version || 'edge' }}
-      UPSTREAM_VERSION: "2.10.1"
+      UPSTREAM_VERSION: "2.10.3"
     steps:
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

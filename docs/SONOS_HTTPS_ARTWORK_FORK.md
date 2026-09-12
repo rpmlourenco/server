@@ -4,6 +4,13 @@ This document describes the personal change maintained on the
 `sonos-https-artwork` branch, how the Home Assistant image is built, and how to
 update the fork when a new stable Music Assistant version is released.
 
+## Current base
+
+The personal branch is based on stable Music Assistant 2.10.3 (released
+2026-09-11), integrated without rewriting the published patch history.
+The Sonos queue changes from upstream are retained. The background PCM decoder
+fix is still needed because it is absent from the 2.10.3 release.
+
 ## Purpose
 
 The Sonos provider can send an artwork URL to a player. In some installations,
@@ -76,7 +83,7 @@ Dockerfile.personal
 image:
 
 ```dockerfile
-ARG UPSTREAM_VERSION=2.10.1
+ARG UPSTREAM_VERSION=2.10.3
 FROM ghcr.io/music-assistant/server:${UPSTREAM_VERSION}
 ```
 
