@@ -6,12 +6,13 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from music_assistant_models.enums import ExternalID, MediaType, ProviderFeature
+from music_assistant_models.enums import ContentType, ExternalID, MediaType, ProviderFeature
 from music_assistant_models.errors import MusicAssistantError
 from music_assistant_models.media_items import Album, Artist, ItemMapping, Track
 
 from music_assistant.constants import MASS_LOGGER_NAME
-from music_assistant.helpers.compare import compare_strings
+from music_assistant.helpers.compare import compare_strings, compare_version
+from music_assistant.helpers.util import parse_title_and_version
 from music_assistant.providers.lastfm_recommendations.constants import (
     PROVIDER_SEARCH_LIMIT,
     SEARCH_CONCURRENCY_LIMIT,
@@ -210,6 +211,10 @@ async def _resolve_item(
 
     streaming_providers = _get_streaming_providers(mass, item_mapping, provider_instance_to_skip)
     if not streaming_providers:
+        if item_mapping.media_type == MediaType.TRACK and artist_name:
+            return await _find_local_flac_track(
+                cast("TracksController", ctrl), item_mapping, artist_name
+            )
         LOGGER.debug("No streaming providers available for resolution")
         return None
 
@@ -335,3 +340,44 @@ async def parse_album(
     return cast(
         "Album | None", await _resolve_item(item_mapping, mass, provider_instance, artist_name)
     )
+
+
+async def _find_local_flac_track(
+    ctrl: TracksController, item_mapping: ItemMapping, artist_name: str
+) -> Track | None:
+    """Find an unambiguous local FLAC track with the same artist, title and version."""
+    prefix = f"{artist_name} - "
+    if not item_mapping.name.startswith(prefix):
+        return None
+    title = item_mapping.name[len(prefix) :]
+    title_name, title_version = parse_title_and_version(title)
+    matches: dict[str, Track] = {}
+
+    for candidate in await ctrl.library_items(
+        search=f"{artist_name} - {title_name}", limit=50, summary=False
+    ):
+        if not candidate.is_playable or not any(
+            mapping.available
+            and mapping.provider_domain.startswith("filesystem_")
+            and mapping.audio_format.content_type == ContentType.FLAC
+            for mapping in candidate.provider_mappings
+        ):
+            continue
+        if not any(compare_strings(artist_name, artist.name) for artist in candidate.artists):
+            continue
+        candidate_name, candidate_version = parse_title_and_version(
+            candidate.name, candidate.version
+        )
+        if not compare_strings(title_name, candidate_name) or not compare_version(
+            title_version, candidate_version
+        ):
+            continue
+        matches[candidate.item_id] = candidate
+
+    if len(matches) == 1:
+        match = next(iter(matches.values()))
+        LOGGER.debug("Matched local FLAC track by artist and title: %s", match.name)
+        return match
+    if matches:
+        LOGGER.debug("Ambiguous local FLAC match for %s", item_mapping.name)
+    return None
