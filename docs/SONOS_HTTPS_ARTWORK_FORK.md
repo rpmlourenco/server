@@ -6,10 +6,11 @@ update the fork when a new stable Music Assistant version is released.
 
 ## Current base
 
-The personal branch is based on stable Music Assistant 2.10.3 (released
-2026-09-11), integrated without rewriting the published patch history.
-The Sonos queue changes from upstream are retained. The background PCM decoder
-fix is still needed because it is absent from the 2.10.3 release.
+The personal branch is based on stable Music Assistant 2.10.4 (released
+2026-09-18), integrated without rewriting the published patch history.
+The Sonos queue and sample-rate changes from upstream are retained. The
+background PCM decoder fix is still needed because it is absent from the
+2.10.4 release.
 
 ## Purpose
 
@@ -83,7 +84,7 @@ Dockerfile.personal
 image:
 
 ```dockerfile
-ARG UPSTREAM_VERSION=2.10.3
+ARG UPSTREAM_VERSION=2.10.4
 FROM ghcr.io/music-assistant/server:${UPSTREAM_VERSION}
 ```
 
@@ -93,6 +94,8 @@ installation. The analysis fix clears the source codec override when preparing
 decoded PCM for background analysis, preventing loudness analysis from decoding
 PCM as FLAC (or another compressed codec). It is included from `2.10.1.dev3`.
 The final image retains the components and dependencies of the official distribution.
+The Sonos `player.py` overlay includes the 2.10.4 sample-rate setting; review
+this entire overlay against each new stable release before publishing.
 When upgrading the base version, review this analysis file against upstream too;
 drop this extra copy once the official image includes the fix.
 
@@ -105,7 +108,7 @@ ghcr.io/rpmlourenco/server:<personal-version>
 Example:
 
 ```text
-ghcr.io/rpmlourenco/server:2.10.1.dev2
+ghcr.io/rpmlourenco/server:2.10.4.dev1
 ```
 
 The build also verifies the expected base-image structure and compiles the
@@ -124,7 +127,7 @@ The `music_assistant_personal/config.yaml` file contains both the image name and
 the version that Supervisor must install:
 
 ```yaml
-version: 2.10.1.dev2
+version: 2.10.4.dev1
 image: ghcr.io/rpmlourenco/server
 ```
 
