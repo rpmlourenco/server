@@ -88,9 +88,12 @@ ARG UPSTREAM_VERSION=2.10.4
 FROM ghcr.io/music-assistant/server:${UPSTREAM_VERSION}
 ```
 
-It then copies the five modified Sonos provider and translation files, plus
-`music_assistant/controllers/streams/audio_analysis.py`, into the existing Python
-installation. The analysis fix clears the source codec override when preparing
+It then copies the modified Sonos provider and translation files, the personal
+Last.fm files, `music_assistant/controllers/music/controller.py`, and
+`music_assistant/controllers/streams/audio_analysis.py` into the existing Python
+installation. The music controller contains the guard that prevents an album refresh
+from replacing a library album with a different search result. The analysis fix clears
+the source codec override when preparing
 decoded PCM for background analysis, preventing loudness analysis from decoding
 PCM as FLAC (or another compressed codec). It is included from `2.10.1.dev3`.
 The final image retains the components and dependencies of the official distribution.
