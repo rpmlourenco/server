@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from music_assistant_models.enums import ExternalID
 from music_assistant_models.media_items import Artist, ProviderMapping
 
 from music_assistant.helpers.tags import AudioTags
@@ -122,3 +123,19 @@ async def test_valid_artist_path_still_resolved(music_tree: str) -> None:
     track = await provider._parse_track(file_item, _make_tags("Nina Simone", ALBUM_FOLDER))
 
     assert [a.item_id for a in track.artists] == [ARTIST_FOLDER]
+
+
+async def test_track_parse_preserves_recording_and_release_track_ids(music_tree: str) -> None:
+    """Filesystem tracks retain both recording identity and concrete release-track identity."""
+    provider = _make_provider(music_tree, [_lib_artist("Nina Simone", ARTIST_FOLDER)])
+    file_item = await provider.resolve(os.path.join(ARTIST_FOLDER, ALBUM_FOLDER, TRACK_FILE))
+    tags = _make_tags("Nina Simone", ALBUM_FOLDER)
+    recording_id = "b4a3d031-01da-4e74-8aa3-fde9f9c8dca3"
+    release_track_id = "106424fa-cd8b-4b56-81c8-ff1d5b67d38a"
+    tags.tags["musicbrainzrecordingid"] = recording_id
+    tags.tags["musicbrainztrackid"] = release_track_id
+
+    track = await provider._parse_track(file_item, tags)
+
+    assert track.mbid == recording_id
+    assert (ExternalID.MB_TRACK, release_track_id) in track.external_ids

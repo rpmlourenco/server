@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from dataclasses import replace
+from unittest.mock import MagicMock, patch
 
 import pytest
 from music_assistant_models.enums import ExternalID
@@ -16,6 +18,13 @@ from .helpers import ISRC, create_track
 
 MBID = "b1a9c0e9-d987-4042-ae91-78d6a3267d69"
 BARCODE = "0724354283857"
+
+
+def _mark_album_mappings_in_library(album: Album) -> None:
+    """Mark a provider album as present in its source library for relation lookups."""
+    album.provider_mappings = {
+        replace(mapping, in_library=True) for mapping in album.provider_mappings
+    }
 
 
 @pytest.fixture
@@ -98,6 +107,105 @@ async def test_same_isrc_from_two_providers_dedupes(music: MusicController) -> N
     assert library_track_1.item_id == library_track_2.item_id
     assert len(library_track_2.provider_mappings) == 2
     assert await music.tracks.library_count() == 1
+
+
+async def test_same_recording_on_distinct_local_releases_stays_separate(
+    music: MusicController,
+) -> None:
+    """A local original and remaster remain distinct playable library tracks."""
+    provider_instance = "filesystem_local--test"
+    provider = MagicMock(instance_id=provider_instance, is_streaming_provider=False)
+    original_album = _create_album(
+        provider_instance,
+        "The Cure/1985 - The Head on the Door",
+        "The Head on the Door",
+        "The Cure",
+        1985,
+    )
+    original_album.external_ids.add(
+        (ExternalID.MB_ALBUM, "a64d99de-2c9c-4148-b190-7787575d8264")
+    )
+    remaster_album = _create_album(
+        provider_instance,
+        "The Cure/1985 - The Head on the Door (Remastered)",
+        "The Head on the Door",
+        "The Cure",
+        1985,
+    )
+    remaster_album.version = "Remastered"
+    remaster_album.external_ids.add(
+        (ExternalID.MB_ALBUM, "c5674dc2-0426-481a-917f-000a9b060412")
+    )
+    _mark_album_mappings_in_library(original_album)
+    _mark_album_mappings_in_library(remaster_album)
+    original = create_track(provider_instance, "original/10 - Sinking.flac", name="Sinking")
+    remaster = create_track(provider_instance, "remaster/10 - Sinking.flac", name="Sinking")
+    recording_id = "b4a3d031-01da-4e74-8aa3-fde9f9c8dca3"
+    original.external_ids.add((ExternalID.MB_RECORDING, recording_id))
+    remaster.external_ids.add((ExternalID.MB_RECORDING, recording_id))
+    original.external_ids.add(
+        (ExternalID.MB_TRACK, "df03920a-2471-3eda-b16e-fac2f647360b")
+    )
+    remaster.external_ids.add(
+        (ExternalID.MB_TRACK, "106424fa-cd8b-4b56-81c8-ff1d5b67d38a")
+    )
+    original.album = original_album
+    remaster.album = remaster_album
+    original.track_number = remaster.track_number = 10
+
+    with patch.object(music.mass, "get_provider", return_value=provider):
+        library_original = await music.tracks.add_item_to_library(original)
+        library_remaster = await music.tracks.add_item_to_library(remaster)
+
+    assert library_original.item_id != library_remaster.item_id
+    assert await music.tracks.library_count() == 2
+    assert {mapping.item_id for mapping in library_original.provider_mappings} == {
+        "original/10 - Sinking.flac"
+    }
+    assert {mapping.item_id for mapping in library_remaster.provider_mappings} == {
+        "remaster/10 - Sinking.flac"
+    }
+
+
+async def test_same_recording_on_same_local_release_still_dedupes(
+    music: MusicController,
+) -> None:
+    """Duplicate local files for the same release may still share one library track."""
+    provider_instance = "filesystem_local--test"
+    provider = MagicMock(instance_id=provider_instance, is_streaming_provider=False)
+    first_album = _create_album(
+        provider_instance, "copy-a/album", "The Head on the Door", "The Cure", 1985
+    )
+    second_album = _create_album(
+        provider_instance, "copy-b/album", "The Head on the Door", "The Cure", 1985
+    )
+    album_id = "a64d99de-2c9c-4148-b190-7787575d8264"
+    first_album.external_ids.add((ExternalID.MB_ALBUM, album_id))
+    second_album.external_ids.add((ExternalID.MB_ALBUM, album_id))
+    _mark_album_mappings_in_library(first_album)
+    _mark_album_mappings_in_library(second_album)
+    first = create_track(provider_instance, "copy-a/10 - Sinking.flac", name="Sinking")
+    second = create_track(provider_instance, "copy-b/10 - Sinking.flac", name="Sinking")
+    recording_id = "b4a3d031-01da-4e74-8aa3-fde9f9c8dca3"
+    first.external_ids.add((ExternalID.MB_RECORDING, recording_id))
+    second.external_ids.add((ExternalID.MB_RECORDING, recording_id))
+    release_track_id = "df03920a-2471-3eda-b16e-fac2f647360b"
+    first.external_ids.add((ExternalID.MB_TRACK, release_track_id))
+    second.external_ids.add((ExternalID.MB_TRACK, release_track_id))
+    first.album = first_album
+    second.album = second_album
+    first.track_number = second.track_number = 10
+
+    with patch.object(music.mass, "get_provider", return_value=provider):
+        library_first = await music.tracks.add_item_to_library(first)
+        stored_albums = await music.tracks.get_library_track_albums(library_first.item_id)
+        assert len(stored_albums) == 1
+        assert (ExternalID.MB_ALBUM, album_id) in stored_albums[0].external_ids
+        library_second = await music.tracks.add_item_to_library(second)
+
+    assert library_first.item_id == library_second.item_id
+    assert await music.tracks.library_count() == 1
+    assert len(library_second.provider_mappings) == 2
 
 
 async def test_formatted_isrc_from_two_providers_dedupes(music: MusicController) -> None:

@@ -8,7 +8,9 @@ ARG PERSONAL_VERSION
 # Keep the official Music Assistant image, including its bundled app credentials,
 # and replace the personal fixes maintained by this branch.
 COPY music_assistant/controllers/music/controller.py /tmp/ma-sonos-patch/controllers/music/controller.py
+COPY music_assistant/controllers/music/media/tracks.py /tmp/ma-sonos-patch/controllers/music/media/tracks.py
 COPY music_assistant/controllers/streams/audio_analysis.py /tmp/ma-sonos-patch/controllers/streams/audio_analysis.py
+COPY music_assistant/helpers/compare.py /tmp/ma-sonos-patch/helpers/compare.py
 COPY music_assistant/providers/filesystem_local/__init__.py /tmp/ma-sonos-patch/providers/filesystem_local/__init__.py
 COPY music_assistant/providers/sonos/const.py /tmp/ma-sonos-patch/providers/sonos/const.py
 COPY music_assistant/providers/sonos/player.py /tmp/ma-sonos-patch/providers/sonos/player.py
@@ -24,6 +26,8 @@ RUN set -eu; \
     test -s "${SITE_PACKAGES}/music_assistant/helpers/app_secrets.json"; \
     python -c 'from music_assistant.helpers.app_vars import app_var; assert app_var("theaudiodb_api_key"); assert app_var("fanarttv_api_key"); assert app_var("lastfm_api_key")'; \
     install -m 644 /tmp/ma-sonos-patch/controllers/music/controller.py "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py"; \
+    install -m 644 /tmp/ma-sonos-patch/controllers/music/media/tracks.py "${SITE_PACKAGES}/music_assistant/controllers/music/media/tracks.py"; \
+    install -m 644 /tmp/ma-sonos-patch/helpers/compare.py "${SITE_PACKAGES}/music_assistant/helpers/compare.py"; \
     install -m 644 /tmp/ma-sonos-patch/providers/filesystem_local/__init__.py "${SITE_PACKAGES}/music_assistant/providers/filesystem_local/__init__.py"; \
     install -m 644 /tmp/ma-sonos-patch/providers/sonos/const.py "${SITE_PACKAGES}/music_assistant/providers/sonos/const.py"; \
     install -m 644 /tmp/ma-sonos-patch/providers/sonos/player.py "${SITE_PACKAGES}/music_assistant/providers/sonos/player.py"; \
@@ -34,9 +38,11 @@ RUN set -eu; \
     install -m 644 /tmp/ma-sonos-patch/translations/en.json "${SITE_PACKAGES}/music_assistant/translations/en.json"; \
     install -m 644 /tmp/ma-sonos-patch/controllers/streams/audio_analysis.py "${SITE_PACKAGES}/music_assistant/controllers/streams/audio_analysis.py"; \
     grep -q "Ignoring mismatched album mapping" "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py"; \
+    grep -q "without conflating distinct local releases" "${SITE_PACKAGES}/music_assistant/controllers/music/media/tracks.py"; \
+    grep -q "release-track conflict first" "${SITE_PACKAGES}/music_assistant/helpers/compare.py"; \
     grep -q "matches_requested_album" "${SITE_PACKAGES}/music_assistant/providers/filesystem_local/__init__.py"; \
     rm -rf /tmp/ma-sonos-patch; \
-    python -m compileall -q "${SITE_PACKAGES}/music_assistant/providers/filesystem_local" "${SITE_PACKAGES}/music_assistant/providers/sonos" "${SITE_PACKAGES}/music_assistant/providers/lastfm_recommendations" "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py" "${SITE_PACKAGES}/music_assistant/controllers/streams/audio_analysis.py"
+    python -m compileall -q "${SITE_PACKAGES}/music_assistant/providers/filesystem_local" "${SITE_PACKAGES}/music_assistant/providers/sonos" "${SITE_PACKAGES}/music_assistant/providers/lastfm_recommendations" "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py" "${SITE_PACKAGES}/music_assistant/controllers/music/media/tracks.py" "${SITE_PACKAGES}/music_assistant/controllers/streams/audio_analysis.py" "${SITE_PACKAGES}/music_assistant/helpers/compare.py"
 
 LABEL \
     io.hass.version="${PERSONAL_VERSION}" \

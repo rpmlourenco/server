@@ -352,9 +352,13 @@ def compare_track(
     ):
         return False
     # return early on (un)matched primary/unique external id
+    # A MusicBrainz release-track ID identifies this track within one concrete release,
+    # while a recording ID identifies the underlying performance and is commonly shared by
+    # originals, remasters and compilations. Resolve a release-track conflict first so an equal
+    # recording ID cannot incorrectly make distinct playable editions interchangeable.
     for ext_id in (
-        ExternalID.MB_RECORDING,
         ExternalID.MB_TRACK,
+        ExternalID.MB_RECORDING,
         ExternalID.ACOUSTID,
     ):
         external_id_match = compare_external_ids(
