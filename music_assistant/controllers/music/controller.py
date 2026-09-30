@@ -1420,6 +1420,7 @@ class MusicController(MusicDatabaseSetupMixin, CoreController):
             return media_item
 
         library_id = media_item.item_id if media_item.provider == "library" else None
+        refresh_source = media_item
 
         # cache in_library state before the provider fetch overwrites media_item
         in_library_cache: dict[tuple[str, str], bool] = {}
@@ -1439,44 +1440,72 @@ class MusicController(MusicDatabaseSetupMixin, CoreController):
                 # ignore unavailable providers
                 continue
             with suppress(MediaNotFoundError):
-                media_item = await ctrl.get_provider_item(
+                provider_item = await ctrl.get_provider_item(
                     prov_mapping.item_id,
                     prov_mapping.provider_instance,
                     force_refresh=True,
                 )
+                if (
+                    media_type == MediaType.ALBUM
+                    and isinstance(refresh_source, Album)
+                    and isinstance(provider_item, Album)
+                    and not compare_album_name(refresh_source.name, provider_item.name)
+                ):
+                    self.logger.warning(
+                        "Ignoring mismatched album mapping %s/%s while refreshing %s: %s",
+                        prov_mapping.provider_instance,
+                        prov_mapping.item_id,
+                        refresh_source.name,
+                        provider_item.name,
+                    )
+                    continue
+                media_item = provider_item
                 provider = media_item.provider
                 item_id = media_item.item_id
                 break
         else:
             # try to find a substitute using search
-            searchresult = await self.search(media_item.name, [media_item.media_type], 20)
+            searchresult = await self.search(refresh_source.name, [media_type], 20)
             result: Sequence[MediaItemType | ItemMapping]
-            if media_item.media_type == MediaType.ARTIST:
+            if media_type == MediaType.ARTIST:
                 result = searchresult.artists
-            elif media_item.media_type == MediaType.ALBUM:
+            elif media_type == MediaType.ALBUM:
                 result = searchresult.albums
-            elif media_item.media_type == MediaType.TRACK:
+            elif media_type == MediaType.TRACK:
                 result = searchresult.tracks
-            elif media_item.media_type == MediaType.PLAYLIST:
+            elif media_type == MediaType.PLAYLIST:
                 result = searchresult.playlists
-            elif media_item.media_type == MediaType.AUDIOBOOK:
+            elif media_type == MediaType.AUDIOBOOK:
                 result = searchresult.audiobooks
-            elif media_item.media_type == MediaType.PODCAST:
+            elif media_type == MediaType.PODCAST:
                 result = searchresult.podcasts
             else:
                 result = searchresult.radio
             for item in result:
-                if item == media_item or item.provider == "library":
+                if item == refresh_source or item.provider == "library":
                     continue
                 if item.available:
+                    if media_type == MediaType.ALBUM and not compare_album_name(
+                        refresh_source.name, item.name
+                    ):
+                        continue
                     provider = item.provider
                     item_id = item.item_id
                     break
             else:
                 # raise if we didn't find a substitute
-                raise MediaNotFoundError(f"Could not find a substitute for {media_item.name}")
+                raise MediaNotFoundError(f"Could not find a substitute for {refresh_source.name}")
         # fetch full (provider) item
         media_item = await ctrl.get_provider_item(item_id, provider, force_refresh=True)
+        if (
+            media_type == MediaType.ALBUM
+            and isinstance(refresh_source, Album)
+            and isinstance(media_item, Album)
+            and not compare_album_name(refresh_source.name, media_item.name)
+        ):
+            raise MediaNotFoundError(
+                f"Could not find a matching substitute for {refresh_source.name}"
+            )
         # update library item if needed (including refresh of the metadata etc.)
         if library_id is None:
             return media_item
