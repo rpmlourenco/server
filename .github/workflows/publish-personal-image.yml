@@ -42,7 +42,9 @@ jobs:
       - name: Validate installed patch and run repository checks
         run: |
           docker run --rm --entrypoint /bin/sh -v "$PWD:/src" -w /src ma-validation -ec '
-            apt-get update -qq\n            apt-get install -y --no-install-recommends git\n            uv pip install --python "$(command -v python)" ruff==0.15.22 pre-commit pre-commit-hooks mypy==2.3.0 codespell pytest==9.1.1
+            apt-get update -qq
+            apt-get install -y --no-install-recommends git
+            uv pip install --python "$(command -v python)" ruff==0.15.22 pre-commit pre-commit-hooks mypy==2.3.0 codespell pytest==9.1.1
             python /src/tests/helpers/test_album_playback.py -v
             export UV_PROJECT_ENVIRONMENT="$(python -c "import sys; print(sys.prefix)")"
             export UV_NO_SYNC=1
