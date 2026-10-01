@@ -959,13 +959,14 @@ class QueueLoaderMixin(_PlayerQueuesBase):
             if x and x.available
         ]
 
-        album_identities: dict[str, set[tuple[str, str]]] = {}
+        album_identities: dict[tuple[str, str], set[tuple[str, str]]] = {}
         for queue_item in queue_items:
             if (album := playback_albums.get(id(queue_item.media_item))) is None:
                 continue
-            if album.uri not in album_identities:
-                album_identities[album.uri] = await local_album_ids(self.mass, album)
-            await pin_local_album(self.mass, queue_item, album_identities[album.uri])
+            album_key = (album.provider, album.item_id)
+            if album_key not in album_identities:
+                album_identities[album_key] = await local_album_ids(self.mass, album)
+            await pin_local_album(self.mass, queue_item, album_identities[album_key])
 
         if not queue_items:
             raise MediaNotFoundError("No playable items found", translation_key="no_playable_items")
