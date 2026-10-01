@@ -71,6 +71,7 @@ def details(path: str) -> StreamDetails:
         stream_type=StreamType.LOCAL_FILE,
         audio_format=AudioFormat(content_type=ContentType.FLAC),
         duration=300,
+        allow_seek=True,
         path=f"/media/{path}",
     )
 
@@ -258,7 +259,9 @@ class InstalledImagePlaybackTests(unittest.IsolatedAsyncioTestCase):
         mass = mass_mock()
         source = track()
         before = deepcopy(source.to_dict())
-        queue = PlayerQueue(queue_id="q1", display_name="Test", available=True)
+        queue = PlayerQueue(
+            queue_id="q1", display_name="Test", available=True, active=True, items=0
+        )
         ctrl = MagicMock()
         ctrl.mass = mass
         ctrl.get.return_value = queue

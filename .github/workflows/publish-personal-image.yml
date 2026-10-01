@@ -78,3 +78,13 @@ jobs:
             org.opencontainers.image.version=${{ env.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Verify published ARM64 image
+        run: |
+          docker buildx imagetools inspect "$IMAGE_NAME:$IMAGE_TAG" --raw > /tmp/manifest.json
+          python - <<'PYVERIFY'
+          import json
+          with open('/tmp/manifest.json') as stream:
+              manifest = json.load(stream)
+          assert any(item.get('platform', {}).get('architecture') == 'arm64' for item in manifest['manifests']), manifest
+          PYVERIFY
