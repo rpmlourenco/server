@@ -8,6 +8,9 @@ ARG PERSONAL_VERSION
 # Keep the official Music Assistant image, including its bundled app credentials,
 # and replace the personal fixes maintained by this branch.
 COPY music_assistant/controllers/music/controller.py /tmp/ma-sonos-patch/controllers/music/controller.py
+COPY music_assistant/helpers/album_playback.py /tmp/ma-sonos-patch/helpers/album_playback.py
+COPY music_assistant/controllers/player_queues/queue_loader.py /tmp/ma-sonos-patch/controllers/player_queues/queue_loader.py
+COPY music_assistant/controllers/streams/audio.py /tmp/ma-sonos-patch/controllers/streams/audio.py
 COPY music_assistant/controllers/streams/audio_analysis.py /tmp/ma-sonos-patch/controllers/streams/audio_analysis.py
 COPY music_assistant/providers/filesystem_local/__init__.py /tmp/ma-sonos-patch/providers/filesystem_local/__init__.py
 COPY music_assistant/providers/sonos/const.py /tmp/ma-sonos-patch/providers/sonos/const.py
@@ -32,11 +35,17 @@ RUN set -eu; \
     install -m 644 /tmp/ma-sonos-patch/providers/lastfm_recommendations/__init__.py "${SITE_PACKAGES}/music_assistant/providers/lastfm_recommendations/__init__.py"; \
     install -m 644 /tmp/ma-sonos-patch/providers/lastfm_recommendations/parsers.py "${SITE_PACKAGES}/music_assistant/providers/lastfm_recommendations/parsers.py"; \
     install -m 644 /tmp/ma-sonos-patch/translations/en.json "${SITE_PACKAGES}/music_assistant/translations/en.json"; \
+    install -m 644 /tmp/ma-sonos-patch/helpers/album_playback.py "${SITE_PACKAGES}/music_assistant/helpers/album_playback.py"; \
+    install -m 644 /tmp/ma-sonos-patch/controllers/player_queues/queue_loader.py "${SITE_PACKAGES}/music_assistant/controllers/player_queues/queue_loader.py"; \
+    install -m 644 /tmp/ma-sonos-patch/controllers/streams/audio.py "${SITE_PACKAGES}/music_assistant/controllers/streams/audio.py"; \
     install -m 644 /tmp/ma-sonos-patch/controllers/streams/audio_analysis.py "${SITE_PACKAGES}/music_assistant/controllers/streams/audio_analysis.py"; \
     grep -q "Ignoring mismatched album mapping" "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py"; \
     grep -q "matches_requested_album" "${SITE_PACKAGES}/music_assistant/providers/filesystem_local/__init__.py"; \
+    grep -q "pin_local_album" "${SITE_PACKAGES}/music_assistant/controllers/player_queues/queue_loader.py"; \
+    grep -q "album_playback_mappings" "${SITE_PACKAGES}/music_assistant/controllers/streams/audio.py"; \
+    python -c 'from music_assistant.helpers.album_playback import album_stream_matches; from music_assistant.controllers.player_queues.queue_loader import QueueLoaderMixin; from music_assistant.controllers.streams.audio import StreamsAudio'; \
     rm -rf /tmp/ma-sonos-patch; \
-    python -m compileall -q "${SITE_PACKAGES}/music_assistant/providers/filesystem_local" "${SITE_PACKAGES}/music_assistant/providers/sonos" "${SITE_PACKAGES}/music_assistant/providers/lastfm_recommendations" "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py" "${SITE_PACKAGES}/music_assistant/controllers/streams/audio_analysis.py"
+    python -m compileall -q "${SITE_PACKAGES}/music_assistant/providers/filesystem_local" "${SITE_PACKAGES}/music_assistant/providers/sonos" "${SITE_PACKAGES}/music_assistant/providers/lastfm_recommendations" "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py" "${SITE_PACKAGES}/music_assistant/controllers/streams/audio_analysis.py" "${SITE_PACKAGES}/music_assistant/controllers/streams/audio.py" "${SITE_PACKAGES}/music_assistant/controllers/player_queues/queue_loader.py" "${SITE_PACKAGES}/music_assistant/helpers/album_playback.py"
 
 LABEL \
     io.hass.version="${PERSONAL_VERSION}" \

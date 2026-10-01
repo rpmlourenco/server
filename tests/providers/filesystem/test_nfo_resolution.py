@@ -1126,9 +1126,7 @@ async def test_get_album_ignores_duplicate_track_mappings_from_other_albums(
         artists=[artist],
         provider_mappings=set(),
     )
-    provider.mass.music.albums.get_library_item_by_prov_id = AsyncMock(
-        return_value=library_album
-    )
+    provider.mass.music.albums.get_library_item_by_prov_id = AsyncMock(return_value=library_album)
     wrong_path = "The Cure/Greatest Hits/01 Shared Track.flac"
     expected_folder = (
         "The Cure/1985 - The Head on the Door"
