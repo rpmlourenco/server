@@ -1093,17 +1093,6 @@ def test_compare_track() -> None:  # noqa: PLR0915
     track_a.external_ids = {(ExternalID.MB_RECORDING, "123")}
     track_b.external_ids = track_a.external_ids
     assert compare.compare_track(track_a, track_b) is True
-    # a shared recording is not the same playable release track when both release-track IDs
-    # are present and conflict (e.g. an original CD versus a later remaster)
-    track_a.external_ids = {
-        (ExternalID.MB_RECORDING, "same-recording-id"),
-        (ExternalID.MB_TRACK, "original-release-track-id"),
-    }
-    track_b.external_ids = {
-        (ExternalID.MB_RECORDING, "same-recording-id"),
-        (ExternalID.MB_TRACK, "remaster-release-track-id"),
-    }
-    assert compare.compare_track(track_a, track_b) is False
     # test on external id mismatch
     track_b.name = track_a.name
     track_b.external_ids = {(ExternalID.MB_RECORDING, "1234")}

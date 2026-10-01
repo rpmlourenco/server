@@ -45,7 +45,6 @@ from music_assistant.controllers.music.helpers import (
     search_name_match_clause,
 )
 from music_assistant.helpers.compare import (
-    compare_album,
     compare_artists,
     compare_media_item,
     compare_track,
@@ -702,36 +701,6 @@ class TracksController(MediaControllerBase[Track]):
                 # 100% match, we update the db with the additional provider mapping(s)
                 await self.add_provider_mappings(db_track.item_id, match)
                 processed_domains.add(provider.domain)
-
-    async def _confirm_library_candidate(
-        self, db_item: Track, item: Track | ItemMapping
-    ) -> bool:
-        """Confirm a track match without conflating distinct local releases."""
-        if not isinstance(item, Track):
-            return await super()._confirm_library_candidate(db_item, item)
-        if not compare_track(db_item, item, strict=True):
-            return False
-
-        # A MusicBrainz recording ID and an ISRC identify the recording, not its mastering.
-        # Streaming-provider mappings intentionally remain interchangeable, but two files from
-        # different local album releases must stay separate so selecting a remaster cannot play
-        # the original (or vice versa).
-        incoming_provider = self.mass.get_provider(item.provider, provider_type=MusicProvider)
-        if incoming_provider is None or incoming_provider.is_streaming_provider or not item.album:
-            return True
-        has_local_mapping = False
-        for mapping in db_item.provider_mappings:
-            mapping_provider = self.mass.get_provider(
-                mapping.provider_instance, provider_type=MusicProvider
-            )
-            if mapping_provider is not None and not mapping_provider.is_streaming_provider:
-                has_local_mapping = True
-                break
-        if not has_local_mapping:
-            return True
-
-        library_albums = await self.get_library_track_albums(db_item.item_id)
-        return any(compare_album(album, item.album, strict=True) for album in library_albums)
 
     async def _add_library_item(self, item: Track, overwrite_existing: bool = False) -> int:
         """Add a new item record to the database."""

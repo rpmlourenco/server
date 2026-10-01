@@ -2561,8 +2561,6 @@ class LocalFileSystemProvider(MusicProvider):
             track.metadata.explicit = explicit_tag == "1"
         if recording_mbid := clean_mbid(tags.musicbrainz_recordingid, tags.filename):
             track.mbid = recording_mbid
-        if release_track_mbid := clean_mbid(tags.get("musicbrainztrackid"), tags.filename):
-            track.add_external_id(ExternalID.MB_TRACK, release_track_mbid)
 
         # handle (optional) loudness measurement tag(s)
         if tags.track_loudness is not None:
