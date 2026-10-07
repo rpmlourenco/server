@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import random
 from contextlib import suppress
-from copy import deepcopy
 from typing import TYPE_CHECKING, cast
 
 from music_assistant_models.enums import (
@@ -65,7 +64,6 @@ from music_assistant.controllers.webserver.helpers.auth_middleware import (
     get_current_user,
     set_current_user,
 )
-from music_assistant.helpers.album_playback import local_album_ids, pin_local_album
 from music_assistant.helpers.audio import get_probed_duration, store_probed_duration
 from music_assistant.helpers.compare import compare_item_ids
 from music_assistant.helpers.throttle_retry import BYPASS_THROTTLER
@@ -758,7 +756,6 @@ class QueueLoaderMixin(_PlayerQueuesBase):
         already_dynamic = queue.is_dynamic and option in (QueueOption.ADD, QueueOption.NEXT)
 
         media_items: list[MediaItemType] = []
-        playback_albums: dict[int, Album] = {}
         # the subset of media_items the user explicitly picked to play next
         play_next_items: list[MediaItemType] = []
         source_items: list[MediaItemType] = []
@@ -908,9 +905,6 @@ class QueueLoaderMixin(_PlayerQueuesBase):
                         # before it - the chosen track is pinned in front of the shuffled rest
                         keep_preceding_items=queue.shuffle_enabled,
                     )
-                    if isinstance(media_item, Album):
-                        resolved_items = deepcopy(resolved_items)
-                        playback_albums.update((id(track), media_item) for track in resolved_items)
                     media_items += resolved_items
                     if plays_next_track:
                         play_next_items += resolved_items
@@ -958,15 +952,6 @@ class QueueLoaderMixin(_PlayerQueuesBase):
             for x in media_items
             if x and x.available
         ]
-
-        album_identities: dict[tuple[str, str], set[tuple[str, str]]] = {}
-        for queue_item in queue_items:
-            if (album := playback_albums.get(id(queue_item.media_item))) is None:
-                continue
-            album_key = (album.provider, album.item_id)
-            if album_key not in album_identities:
-                album_identities[album_key] = await local_album_ids(self.mass, album)
-            await pin_local_album(self.mass, queue_item, album_identities[album_key])
 
         if not queue_items:
             raise MediaNotFoundError("No playable items found", translation_key="no_playable_items")

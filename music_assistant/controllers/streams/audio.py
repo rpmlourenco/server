@@ -116,11 +116,6 @@ from music_assistant.controllers.streams.smart_fades.fades import SmartFade, Sta
 from music_assistant.controllers.streams.smart_fades.helpers import SMART_CROSSFADE_DURATION
 from music_assistant.helpers import ssl as ssl_util
 from music_assistant.helpers.aiohttp_client import encoded_request_url
-from music_assistant.helpers.album_playback import (
-    ATTR_LOCAL_ALBUM_MAPPINGS,
-    album_playback_mappings,
-    album_stream_matches,
-)
 from music_assistant.helpers.audio import (
     HTTP_HEADERS,
     HTTP_HEADERS_ICY,
@@ -626,7 +621,6 @@ class StreamsAudio:
 
         if (
             queue_item.streamdetails
-            and album_stream_matches(queue_item, queue_item.streamdetails)
             # cached details of an excluded instance are exactly what we select away from
             and queue_item.streamdetails.provider not in excluded_provider_instances
             and (
@@ -657,7 +651,7 @@ class StreamsAudio:
                 # handle steering into user preferred providerinstance
                 preferred_providers = playback_user.provider_filter
             candidates = self._get_streamdetail_candidates(
-                album_playback_mappings(queue_item, media_item.provider_mappings),
+                media_item.provider_mappings,
                 preferred_providers,
                 excluded_provider_instances,
             )
@@ -3392,10 +3386,6 @@ class StreamsAudio:
             the candidates when all are saturated.
         """
         loop = asyncio.get_running_loop()
-        if queue_item.streamdetails and not album_stream_matches(
-            queue_item, queue_item.streamdetails
-        ):
-            queue_item.streamdetails = None
         # the playback intent lives on the details we start from; keep it across a reselection
         initial_streamdetails = queue_item.streamdetails
         seek_position = (
@@ -3410,9 +3400,7 @@ class StreamsAudio:
         all_candidate_instances = {
             provider.instance_id
             for mapping in (
-                album_playback_mappings(queue_item, queue_item.media_item.provider_mappings)
-                if queue_item.media_item
-                else ()
+                queue_item.media_item.provider_mappings if queue_item.media_item else ()
             )
             if mapping.available
             for provider in self._get_mapping_providers(mapping)
@@ -3423,7 +3411,6 @@ class StreamsAudio:
         # match is only searched once, and only when every known candidate is saturated
         match_pending = (
             allow_provider_match
-            and ATTR_LOCAL_ALBUM_MAPPINGS not in queue_item.extra_attributes
             and isinstance(queue_item.media_item, Track)
             and self._has_alternative_match_providers(queue_item.media_item)
         )

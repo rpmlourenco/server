@@ -44,13 +44,14 @@ jobs:
           docker run --rm --entrypoint /bin/sh -v "$PWD:/src" -w /src ma-validation -ec '
             apt-get update -qq
             apt-get install -y --no-install-recommends git
-            uv pip install --python "$(command -v python)" ruff==0.15.22 pre-commit pre-commit-hooks mypy==2.3.0 codespell pytest==9.1.1
-            python /src/tests/helpers/test_album_playback.py -v
+            uv pip install --python "$(command -v python)" ruff==0.15.22 pre-commit pre-commit-hooks mypy==2.3.0 codespell pytest==9.1.1 pytest-asyncio==1.4.0 pytest-aiohttp==1.1.1 pytest-timeout==2.4.0 pytest-xdist==3.8.0 syrupy==6.1.1
+            python /src/tests/controllers/music/test_local_track_editions.py -v
+            PYTHONPATH=/src python -m pytest tests/controllers/music/test_local_track_editions.py tests/controllers/music/test_external_id_lookup.py tests/helpers/test_compare.py tests/helpers/test_tags.py tests/providers/filesystem/test_artist_path.py tests/providers/filesystem/test_nfo_resolution.py -q
             export UV_PROJECT_ENVIRONMENT="$(python -c "import sys; print(sys.prefix)")"
             export UV_NO_SYNC=1
             git config --global --add safe.directory /src
             SKIP=mypy pre-commit run --all-files
-            mypy music_assistant/helpers/album_playback.py music_assistant/controllers/player_queues/queue_loader.py music_assistant/controllers/streams/audio.py
+            mypy music_assistant/controllers/music/media/tracks.py music_assistant/helpers/tags.py music_assistant/providers/filesystem_local/__init__.py
           '
 
       - name: Log in to GitHub Container Registry

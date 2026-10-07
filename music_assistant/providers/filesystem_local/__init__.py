@@ -2559,8 +2559,15 @@ class LocalFileSystemProvider(MusicProvider):
         explicit_tag = tags.get("itunesadvisory")
         if explicit_tag is not None:
             track.metadata.explicit = explicit_tag == "1"
-        if recording_mbid := clean_mbid(tags.musicbrainz_recordingid, tags.filename):
+        recording_id = (
+            tags.get("musicbrainzrecordingid")
+            if tags.musicbrainz_releasetrackid
+            else tags.musicbrainz_recordingid
+        )
+        if recording_mbid := clean_mbid(recording_id, tags.filename):
             track.mbid = recording_mbid
+        if release_track_mbid := clean_mbid(tags.musicbrainz_releasetrackid, tags.filename):
+            track.add_external_id(ExternalID.MB_TRACK, release_track_mbid)
 
         # handle (optional) loudness measurement tag(s)
         if tags.track_loudness is not None:
