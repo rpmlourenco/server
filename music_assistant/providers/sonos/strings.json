@@ -1,4 +1,10 @@
 {
+  "config_entries": {
+    "artwork_https_base_url": {
+      "label": "Artwork HTTPS base URL",
+      "description": "Optional HTTPS endpoint used only for Music Assistant artwork sent to Sonos. Leave empty to keep the default image URLs."
+    }
+  },
   "manifest": {
     "description": "Play music, manage groups, and control SONOS speakers throughout your home."
   },

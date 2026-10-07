@@ -305,6 +305,7 @@ async def test_refresh_survives_a_session_the_speaker_forgot() -> None:
 def _make_provider() -> SonosPlayerProvider:
     """Create a bare provider for the cloud-queue request handlers."""
     provider = SonosPlayerProvider.__new__(SonosPlayerProvider)
+    provider._artwork_https_base_url = None
     provider.mass = MagicMock()
     provider.logger = logging.getLogger("test.sonos.cloud_queue")
     provider._pending_refresh_tasks = set()
@@ -702,6 +703,7 @@ async def test_a_failed_load_leaves_no_cloud_queue_described() -> None:
 def test_queue_change_only_reaches_the_speakers_playing_it() -> None:
     """Test a queue edit is signalled to the speakers serving that queue."""
     provider = SonosPlayerProvider.__new__(SonosPlayerProvider)
+    provider._artwork_https_base_url = None
     provider.mass = MagicMock()
     provider.logger = logging.getLogger("test.sonos.cloud_queue")
     provider._pending_refresh_tasks = set()

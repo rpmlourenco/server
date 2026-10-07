@@ -1,0 +1,93 @@
+name: Publish personal Music Assistant image
+
+on:
+  push:
+    branches:
+      - sonos-https-artwork
+      - "2.10.*.dev*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to deploy through the Home Assistant add-on (for example 2.10.5.dev1)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: personal-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Build and publish ARM64 image
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/server
+      IMAGE_TAG: ${{ inputs.version || (github.ref_name != 'sonos-https-artwork' && github.ref_name) || 'edge' }}
+      UPSTREAM_VERSION: "2.10.5"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Build native validation image
+        run: >-
+          docker build --platform linux/amd64 -f Dockerfile.personal
+          --build-arg UPSTREAM_VERSION=${{ env.UPSTREAM_VERSION }}
+          --build-arg PERSONAL_VERSION=${{ env.IMAGE_TAG }}
+          -t ma-validation .
+
+      - name: Validate installed patch and run repository checks
+        run: |
+          docker run --rm --entrypoint /bin/sh -v "$PWD:/src" -w /src ma-validation -ec '
+            apt-get update -qq
+            apt-get install -y --no-install-recommends git util-linux
+            uv pip install --python "$(command -v python)" ruff==0.15.22 pre-commit pre-commit-hooks mypy==2.3.0 codespell pytest==9.1.1 pytest-asyncio==1.4.0 pytest-aiohttp==1.1.1 pytest-timeout==2.4.0 pytest-xdist==3.8.0 syrupy==6.1.1
+            python /src/tests/controllers/music/test_local_track_editions.py -v
+            runuser -u nobody -- env PYTHONPATH=/src python -m pytest tests/controllers/music/test_local_track_editions.py tests/controllers/music/test_external_id_lookup.py tests/helpers/test_compare.py tests/helpers/test_tags.py tests/providers/filesystem/test_artist_path.py tests/providers/filesystem/test_nfo_resolution.py -q -p no:cacheprovider
+            export UV_PROJECT_ENVIRONMENT="$(python -c "import sys; print(sys.prefix)")"
+            export UV_NO_SYNC=1
+            git config --global --add safe.directory /src
+            SKIP=mypy pre-commit run --all-files
+            mypy music_assistant/controllers/music/media/tracks.py music_assistant/helpers/tags.py music_assistant/providers/filesystem_local/__init__.py
+          '
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Build and publish image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile.personal
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          build-args: |
+            UPSTREAM_VERSION=${{ env.UPSTREAM_VERSION }}
+            PERSONAL_VERSION=${{ env.IMAGE_TAG }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify published ARM64 image
+        run: |
+          docker buildx imagetools inspect "$IMAGE_NAME:$IMAGE_TAG" --raw > /tmp/manifest.json
+          python - <<'PYVERIFY'
+          import json
+          with open('/tmp/manifest.json') as stream:
+              manifest = json.load(stream)
+          assert any(item.get('platform', {}).get('architecture') == 'arm64' for item in manifest['manifests']), manifest
+          PYVERIFY

@@ -75,7 +75,7 @@ from music_assistant.controllers.tasks.context import (
     update_current_task_progress_text,
 )
 from music_assistant.helpers import lyrics
-from music_assistant.helpers.compare import compare_strings
+from music_assistant.helpers.compare import compare_artists, compare_strings
 from music_assistant.helpers.cue_sheet import CueSheet
 from music_assistant.helpers.json import SerializableType, json_loads
 from music_assistant.helpers.playlists import parse_m3u, parse_pls
@@ -762,7 +762,25 @@ class LocalFileSystemProvider(MusicProvider):
 
     async def get_album(self, prov_album_id: str) -> Album:
         """Get full album details by id."""
+        library_album = await self.mass.music.albums.get_library_item_by_prov_id(
+            prov_album_id, self.instance_id
+        )
         parsed_cue_paths: set[str] = set()
+        parsed_track_paths: set[str] = set()
+
+        def matches_requested_album(candidate: Album) -> bool:
+            """Return whether a parsed track album belongs to the requested mapping."""
+            if candidate.provider == self.instance_id and candidate.item_id == prov_album_id:
+                return True
+            # Older scans can contain a synthetic album id because no physical album folder
+            # was resolved at import time. In that case use the stored identity, not whichever
+            # duplicate copy of the first track happens to occur first in a mapping set.
+            return bool(
+                library_album
+                and compare_strings(candidate.name, library_album.name)
+                and compare_artists(candidate.artists, library_album.artists)
+            )
+
         # early returns below stop iterating this generator before it's exhausted; without an
         # explicit aclose() that leaves its _ondemand_listing_scope() cleanup (a ContextVar
         # reset) to whenever the event loop's async-generator finalizer happens to run, instead
@@ -773,7 +791,8 @@ class LocalFileSystemProvider(MusicProvider):
                     # already a fully parsed album: the folder-scan fallback (used when this id
                     # has no library mapping yet) yields these directly, so re-resolving and
                     # re-parsing the same file below would only repeat the same tag/NFO work
-                    return track.album
+                    if matches_requested_album(track.album):
+                        return track.album
                 for prov_mapping in track.provider_mappings:
                     if prov_mapping.provider_instance != self.instance_id:
                         continue
@@ -784,14 +803,20 @@ class LocalFileSystemProvider(MusicProvider):
                         parsed_cue_paths.add(parsed[0])
                         cue_item = await self.resolve(parsed[0])
                         for cue_track in await self._cue.parse_tracks(cue_item):
-                            if isinstance(cue_track.album, Album):
+                            if isinstance(cue_track.album, Album) and matches_requested_album(
+                                cue_track.album
+                            ):
                                 return cue_track.album
                         continue
+                    if prov_mapping.item_id in parsed_track_paths:
+                        continue
+                    parsed_track_paths.add(prov_mapping.item_id)
                     file_item = await self.resolve(prov_mapping.item_id)
                     tags = await async_parse_tags(file_item.absolute_path, file_item.file_size)
                     full_track = await self._parse_track(file_item, tags)
                     assert isinstance(full_track.album, Album)
-                    return full_track.album
+                    if matches_requested_album(full_track.album):
+                        return full_track.album
         msg = f"Album not found: {prov_album_id}"
         raise MediaNotFoundError(msg)
 
@@ -2540,8 +2565,15 @@ class LocalFileSystemProvider(MusicProvider):
         explicit_tag = tags.get("itunesadvisory")
         if explicit_tag is not None:
             track.metadata.explicit = explicit_tag == "1"
-        if recording_mbid := clean_mbid(tags.musicbrainz_recordingid, tags.filename):
+        recording_id = (
+            tags.get("musicbrainzrecordingid")
+            if tags.musicbrainz_releasetrackid
+            else tags.musicbrainz_recordingid
+        )
+        if recording_mbid := clean_mbid(recording_id, tags.filename):
             track.mbid = recording_mbid
+        if release_track_mbid := clean_mbid(tags.musicbrainz_releasetrackid, tags.filename):
+            track.add_external_id(ExternalID.MB_TRACK, release_track_mbid)
 
         # handle (optional) loudness measurement tag(s)
         if tags.track_loudness is not None:

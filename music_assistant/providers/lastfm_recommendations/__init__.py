@@ -273,6 +273,7 @@ class LastFMRecommendationsProvider(MetadataProvider):
         CACHE_EXPIRATION_SECONDS,
         category=CACHE_CATEGORY_RESOLVED_ITEMS,
         allow_expired_cache=True,
+        cache_checksum="lastfm-local-flac-track-v1",
     )
     async def _get_artist_toptracks(
         self, artist_name: str, artist_mbid: str | None, limit: int

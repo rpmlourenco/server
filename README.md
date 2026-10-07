@@ -45,6 +45,15 @@ For local development you provide the system dependencies yourself — **Python 
 - `python -m music_assistant --log-level debug` — run the server locally (listens on http://localhost:8095)
 - `pytest` runs the tests; `pre-commit run --all-files` runs the linters
 
+## Personal Sonos HTTPS artwork build
+
+The `sonos-https-artwork` branch adds an optional HTTPS artwork base URL to the
+Sonos provider and publishes a personal ARM64 image based on an official Music
+Assistant image.
+
+See [docs/SONOS_HTTPS_ARTWORK_FORK.md](docs/SONOS_HTTPS_ARTWORK_FORK.md) for the
+patch architecture, image build, release process and upstream update procedure.
+
 ---
 
 [![A project from the Open Home Foundation](https://www.openhomefoundation.org/badges/ohf-project.png)](https://www.openhomefoundation.org/)

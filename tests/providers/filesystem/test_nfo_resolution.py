@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from music_assistant_models.enums import AlbumType, ExternalID
 from music_assistant_models.errors import InvalidDataError, MediaNotFoundError
-from music_assistant_models.media_items import Album
+from music_assistant_models.media_items import Album, ItemMapping, ProviderMapping
 
 from music_assistant.controllers.cache import BYPASS_CACHE
 from music_assistant.helpers.util import parse_title_and_version
@@ -1104,6 +1104,83 @@ async def test_get_album_reuses_the_already_parsed_album_from_the_folder_scan() 
 
     assert result is parsed_album
     provider._parse_track.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("requested_id", "expected_name"),
+    [
+        ("The Cure/1985 - The Head on the Door", "The Head on the Door"),
+        ("The Cure/Staring at the Sea: The Singles", "Staring at the Sea: The Singles"),
+    ],
+)
+async def test_get_album_ignores_duplicate_track_mappings_from_other_albums(
+    requested_id: str, expected_name: str
+) -> None:
+    """A shared track copy cannot make an album refresh return a different album."""
+    provider = _provider()
+    artist = ItemMapping(item_id="artist", provider=INSTANCE_ID, name="The Cure")
+    library_album = Album(
+        item_id="1407",
+        provider="library",
+        name=expected_name,
+        artists=[artist],
+        provider_mappings=set(),
+    )
+    provider.mass.music.albums.get_library_item_by_prov_id = AsyncMock(return_value=library_album)
+    wrong_path = "The Cure/Greatest Hits/01 Shared Track.flac"
+    expected_folder = (
+        "The Cure/1985 - The Head on the Door"
+        if expected_name == "The Head on the Door"
+        else "The Cure/1986 - Staring at the Sea The Singles"
+    )
+    expected_path = f"{expected_folder}/01 Shared Track.flac"
+    merged_track = MagicMock(
+        album=ItemMapping(item_id="1407", provider="library", name=expected_name),
+        provider_mappings=[
+            ProviderMapping(
+                item_id=wrong_path,
+                provider_domain="filesystem_local",
+                provider_instance=INSTANCE_ID,
+            ),
+            ProviderMapping(
+                item_id=expected_path,
+                provider_domain="filesystem_local",
+                provider_instance=INSTANCE_ID,
+            ),
+        ],
+    )
+
+    async def _iter_tracks(_prov_album_id: str) -> Any:
+        yield merged_track
+
+    provider._iter_album_tracks = _iter_tracks
+    provider.resolve = AsyncMock(side_effect=lambda path: _item(path))
+    wrong_album = Album(
+        item_id="The Cure/Greatest Hits",
+        provider=INSTANCE_ID,
+        name="Greatest Hits",
+        artists=[artist],
+        provider_mappings=set(),
+    )
+    expected_album = Album(
+        item_id=expected_folder,
+        provider=INSTANCE_ID,
+        name=expected_name,
+        artists=[artist],
+        provider_mappings=set(),
+    )
+    provider._parse_track = AsyncMock(
+        side_effect=[MagicMock(album=wrong_album), MagicMock(album=expected_album)]
+    )
+
+    with patch(
+        "music_assistant.providers.filesystem_local.async_parse_tags",
+        AsyncMock(return_value=MagicMock()),
+    ):
+        result = await provider.get_album(requested_id)
+
+    assert result is expected_album
+    assert provider._parse_track.await_count == 2
 
 
 async def test_get_album_closes_the_track_scan_deterministically_on_early_return() -> None:

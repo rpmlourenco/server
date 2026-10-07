@@ -46,6 +46,7 @@ from music_assistant.controllers.music.helpers import (
 )
 from music_assistant.helpers.compare import (
     compare_artists,
+    compare_external_ids,
     compare_media_item,
     compare_track,
     loose_compare_strings,
@@ -124,6 +125,7 @@ class TracksController(MediaControllerBase[Track]):
                     'sort_name', albums.sort_name,
                     'media_type', 'album',
                     'year', albums.year,
+                    'version', albums.version,
                     'disc_number', album_tracks.disc_number,
                     'track_number', album_tracks.track_number,
                     'images', json_extract(albums.metadata, '$.images')
@@ -156,6 +158,7 @@ class TracksController(MediaControllerBase[Track]):
                     'name', albums.name,
                     'sort_name', albums.sort_name,
                     'year', albums.year,
+                    'version', albums.version,
                     'disc_number', album_tracks.disc_number,
                     'track_number', album_tracks.track_number,
                     'images', json_extract(albums.metadata, '$.images')
@@ -702,6 +705,86 @@ class TracksController(MediaControllerBase[Track]):
                 await self.add_provider_mappings(db_track.item_id, match)
                 processed_domains.add(provider.domain)
 
+    async def _confirm_library_candidate(self, db_item: Track, item: Track | ItemMapping) -> bool:
+        """Keep distinct filesystem releases separate when importing local tracks."""
+        if not isinstance(item, Track):
+            return await super()._confirm_library_candidate(db_item, item)
+        incoming_local = {
+            mapping.provider_instance
+            for mapping in item.provider_mappings
+            if mapping.provider_domain == "filesystem_local"
+        }
+        existing_local = [
+            mapping
+            for mapping in db_item.provider_mappings
+            if mapping.provider_domain == "filesystem_local"
+        ]
+        if not incoming_local or not existing_local:
+            return await super()._confirm_library_candidate(db_item, item)
+
+        # Reject incompatible candidates using the already loaded library metadata.
+        # A native lookup launches ffprobe and parses album/artist metadata, so doing
+        # that for every title or recording collision makes large imports very slow.
+        if (
+            compare_external_ids(db_item.external_ids, item.external_ids, ExternalID.MB_TRACK)
+            is False
+        ) or not compare_track(db_item, item, strict=True):
+            return False
+
+        # Library albums and tracks can already aggregate several sources. Inspect the
+        # native local track instead, so merged metadata or a shared streaming mapping
+        # cannot turn two different local editions into an apparent exact match.
+        for mapping in existing_local:
+            provider = self.mass.get_provider(
+                mapping.provider_instance, provider_type=MusicProvider
+            )
+            if provider is None:
+                continue
+            try:
+                local_track = await provider.get_track(mapping.item_id)
+            except MusicAssistantError:
+                continue
+            if self._same_local_release(local_track, item):
+                return True
+        return False
+
+    @staticmethod
+    def _same_local_release(first: Track, second: Track) -> bool:
+        """Confirm recording and edition identity for two native local tracks."""
+        if not compare_track(first, second, strict=True) or not first.album or not second.album:
+            return False
+        if (
+            compare_external_ids(first.external_ids, second.external_ids, ExternalID.MB_TRACK)
+            is False
+        ):
+            return False
+        if (
+            first.track_number and second.track_number and first.track_number != second.track_number
+        ) or (first.disc_number and second.disc_number and first.disc_number != second.disc_number):
+            return False
+        release_match = compare_external_ids(
+            first.album.external_ids, second.album.external_ids, ExternalID.MB_ALBUM
+        )
+        if release_match is not None:
+            return release_match
+        # Without release IDs, require the same physical provider album identity.
+        # Synthetic IDs derived from artist/title can collide across unrelated folders.
+        return (
+            isinstance(first.album, Album)
+            and isinstance(second.album, Album)
+            and first.album.provider == second.album.provider
+            and first.album.item_id == second.album.item_id
+            and all(
+                any(
+                    mapping.provider_instance == album.provider
+                    and mapping.item_id == album.item_id
+                    and mapping.url == album.item_id
+                    for mapping in album.provider_mappings
+                )
+                for album in (first.album, second.album)
+            )
+        )
+
     async def _add_library_item(self, item: Track, overwrite_existing: bool = False) -> int:
         """Add a new item record to the database."""
         if not isinstance(item, Track):  # TODO: Remove this once the codebase is fully typed
@@ -973,6 +1056,7 @@ class TracksController(MediaControllerBase[Track]):
                 name=album["name"],
                 sort_name=album["sort_name"],
                 year=album["year"],
+                version=album.get("version", ""),
                 image=album_thumb,
             )
             item.disc_number = album["disc_number"] or 0

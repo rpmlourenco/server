@@ -458,7 +458,9 @@ class SonosPlayer(Player):
             },
         }
         if media.image_url:
-            container["imageUrl"] = media.image_url
+            provider = cast("SonosPlayerProvider", self.provider)
+            if image_url := provider.get_sonos_artwork_url(media.image_url):
+                container["imageUrl"] = image_url
         await self.group_controller.play_stream_url(stream_url, container)
         # same post-success sweep as the cloud-queue branch: a forced-flow queue
         # (overlay) streams through here and its replaced session's response must

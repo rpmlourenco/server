@@ -10,7 +10,14 @@ from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 import pytest
 from music_assistant_models.enums import EventType, MediaType, ProviderType
 from music_assistant_models.errors import InsufficientPermissions
-from music_assistant_models.media_items import Album, AudioFormat, ProviderMapping, UniqueList
+from music_assistant_models.media_items import (
+    Album,
+    Artist,
+    AudioFormat,
+    ProviderMapping,
+    SearchResults,
+    UniqueList,
+)
 
 from music_assistant.constants import CONF_ENTRY_LIBRARY_SYNC_BACK
 from music_assistant.controllers.music import MusicController
@@ -469,6 +476,59 @@ async def test_refresh_item_non_library_item_skips_update() -> None:
 
     assert result is fresh_item
     ctrl_mock.update_item_in_library.assert_not_called()
+
+
+async def test_refresh_album_skips_mismatched_mapping_and_search_result() -> None:
+    """Refreshing an album never replaces it with a different album from the same artist."""
+    artist = Artist(item_id="artist", provider="library", name="The Cure", provider_mappings=set())
+    stale_mapping = create_provider_mapping(item_id="staring")
+    library_item = Album(
+        item_id="1",
+        provider="library",
+        name="The Head on the Door",
+        artists=UniqueList([artist]),
+        provider_mappings={stale_mapping},
+    )
+    wrong_album = Album(
+        item_id="staring",
+        provider="spotify_1",
+        name="Staring at the Sea: The Singles",
+        artists=UniqueList([artist]),
+        provider_mappings={stale_mapping},
+    )
+    correct_mapping = create_provider_mapping(item_id="head")
+    correct_album = Album(
+        item_id="head",
+        provider="spotify_1",
+        name="The Head on the Door",
+        artists=UniqueList([artist]),
+        provider_mappings={correct_mapping},
+    )
+
+    returned_item = Mock(media_type=MediaType.TRACK)
+    ctrl_mock = AsyncMock()
+    ctrl_mock.get_provider_item = AsyncMock(side_effect=[wrong_album, correct_album])
+    ctrl_mock.update_item_in_library = AsyncMock(return_value=returned_item)
+    ctrl_mock.match_providers = AsyncMock()
+
+    mass = Mock()
+    mass.get_provider.return_value = Mock()
+    mass.metadata = AsyncMock()
+
+    music_ctrl = MusicController.__new__(MusicController)
+    music_ctrl.mass = mass
+    music_ctrl.logger = Mock()
+    search_results = SearchResults(albums=UniqueList([wrong_album, correct_album]))
+
+    with (
+        patch.object(music_ctrl, "get_controller", return_value=ctrl_mock),
+        patch.object(music_ctrl, "search", new_callable=AsyncMock, return_value=search_results),
+    ):
+        await music_ctrl.refresh_item(library_item)
+
+    ctrl_mock.update_item_in_library.assert_awaited_once_with(
+        library_item.item_id, correct_album, overwrite=True
+    )
 
 
 # --- Group 3: Sync deletions ---

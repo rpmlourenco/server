@@ -9,7 +9,7 @@ from aiohttp import ConnectionTimeoutError
 from aiosonos.api.models import MusicService
 from aiosonos.api.models import PlayBackState as SonosPlayBackState
 from aiosonos.exceptions import CannotConnect, FailedCommand
-from music_assistant_models.enums import PlaybackState
+from music_assistant_models.enums import PlaybackState, PlayerFeature
 from music_assistant_models.player import PlayerMedia
 
 from music_assistant.constants import EXTERNAL_PAUSE_IDLE_TIMEOUT
@@ -26,9 +26,11 @@ def _bind_player(mass: MusicAssistant | MagicMock) -> tuple[SonosPlayer, MagicMo
     player.mass = mass
     player.logger = logging.getLogger("test.sonos.player")
     player._player_id = "sonos_player"
+    player._attr_supported_features = {PlayerFeature.ENQUEUE}
     player._listen_task = None
     player.connected = False
     player.client = client
+    player._cache = {}
     player._on_unload_callbacks = []
     player.update_state = MagicMock()  # type: ignore[misc, method-assign]
     return player, client
@@ -41,6 +43,39 @@ def _make_player() -> tuple[SonosPlayer, MagicMock]:
     mass.players.get_player.return_value = MagicMock()
     player, _ = _bind_player(mass)
     return player, mass
+
+
+@pytest.mark.asyncio
+async def test_play_stream_url_rewrites_artwork_but_not_audio() -> None:
+    """Test direct stream playback changes only the Sonos container artwork URL."""
+    mass = MagicMock()
+    mass.streams.resolve_stream_url = AsyncMock(
+        return_value="http://192.168.0.143:8097/stream/radio.aac"
+    )
+    provider = MagicMock()
+    provider.mass = mass
+    provider.get_sonos_artwork_url.return_value = f"https://example.com/ma-sonos-artwork/{'c' * 64}"
+    player, client = _bind_player(mass)
+    player._provider = provider
+    player._config = MagicMock()
+    player._config.get_value.return_value = False
+    player.cloud_queue_id = None
+    player.cloud_queue_version = 0
+    player.cloud_queue_item_generation = 0
+    player._announcement_media = None
+    client.player.is_passive = False
+    client.player.group.play_stream_url = AsyncMock()
+    media = PlayerMedia(
+        uri="library://radio/1",
+        title="Radio",
+        image_url=f"http://192.168.0.143:8097/imageproxy/{'c' * 64}?size=512",
+    )
+
+    await player.play_media(media)
+
+    stream_url, container = client.player.group.play_stream_url.await_args.args
+    assert stream_url == "http://192.168.0.143:8097/stream/radio.aac"
+    assert container["imageUrl"] == f"https://example.com/ma-sonos-artwork/{'c' * 64}"
 
 
 async def _connect_player(player: SonosPlayer, client: MagicMock) -> None:
