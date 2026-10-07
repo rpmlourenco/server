@@ -770,11 +770,12 @@ async def test_background_streaming_cancellation_cleans_up(
 
 
 @pytest.mark.asyncio
-async def test_run_background_scan_defers_past_run_budget(
+async def test_run_background_scan_exhausts_candidates_without_global_deadline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Tracks past the run-budget deadline are deferred to the next run."""
+    """The scan consumes every candidate even after more than four hours have elapsed."""
     controller = _make_controller()
+    monkeypatch.setattr(controller, "_get_scan_concurrency", lambda: 1)
 
     p1 = _make_aa_provider("prov-1", available=True)
     p1.domain = "p1"
@@ -796,20 +797,31 @@ async def test_run_background_scan_defers_past_run_budget(
         controller, "_find_candidates_missing_analysis", AsyncMock(return_value=candidates)
     )
 
-    # Force budget to negative so every candidate is past deadline.
-    monkeypatch.setattr(audio_analysis_mod, "BACKGROUND_SCAN_RUN_BUDGET_SECONDS", -1)
+    streamdetails_list = [
+        _make_streamdetails(path=f"/music/{candidate['item_id']}.flac") for candidate in candidates
+    ]
+    for streamdetails in streamdetails_list:
+        streamdetails.stream_type = StreamType.LOCAL_FILE
+    music_prov = MagicMock()
+    music_prov.available = True
+    music_prov.get_stream_details = AsyncMock(side_effect=streamdetails_list)
+    controller.mass.get_provider = MagicMock(return_value=music_prov)  # type: ignore[method-assign]
 
-    streaming_called = False
+    monotonic = MagicMock(side_effect=[0.0, 5 * 3600.0])
+    monkeypatch.setattr(audio_analysis_mod, "time", MagicMock(monotonic=monotonic))
 
-    async def _track_streaming(_sd: object, _providers: object, **_kwargs: object) -> None:
-        nonlocal streaming_called
-        streaming_called = True
+    analyzed_paths: list[str] = []
+
+    async def _track_streaming(sd: object, _providers: object, **_kwargs: object) -> None:
+        analyzed_paths.append(sd.path)  # type: ignore[attr-defined]
 
     monkeypatch.setattr(controller, "_run_background_streaming_for_track", _track_streaming)
 
     await controller._run_background_scan()
 
-    assert not streaming_called
+    assert analyzed_paths == [streamdetails.path for streamdetails in streamdetails_list]
+    assert music_prov.get_stream_details.await_count == len(candidates)
+    assert monotonic.call_count == 2
 
 
 @pytest.mark.asyncio

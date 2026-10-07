@@ -50,8 +50,6 @@ TRACK_EXPORT_AA_PRIORITY = (SMART_FADES_ANALYSIS_DOMAIN, SONIC_ANALYSIS_DOMAIN)
 BACKGROUND_SCAN_TASK_ID = "audio_analysis_background_scan"
 BACKGROUND_PER_TRACK_TIMEOUT_SECONDS = 300
 BACKGROUND_PER_TRACK_TIMEOUT_DURATION_MULTIPLIER = 1.5
-# Per-run wall-clock cap; in-flight tracks finish, new ones defer to the next run.
-BACKGROUND_SCAN_RUN_BUDGET_SECONDS = 4 * 3600
 # Per-chunk processing ceiling for live and background analysis; a provider that exceeds it is
 # treated as stuck and evicted. Generous because analysis runs one offload at a time while a
 # player streams, so a chunk may wait behind other work before it computes.
@@ -992,13 +990,10 @@ class AudioAnalysisController:
             return
 
         scan_started = time.monotonic()
-        run_deadline = scan_started + BACKGROUND_SCAN_RUN_BUDGET_SECONDS
         self.logger.info(
-            "Background analysis (streaming): %d track(s) pending across %d provider(s); "
-            "run budget %.1fh",
+            "Background analysis (streaming): %d track(s) pending across %d provider(s)",
             len(candidates),
             len(providers),
-            BACKGROUND_SCAN_RUN_BUDGET_SECONDS / 3600,
         )
 
         concurrency = self._get_scan_concurrency()
@@ -1048,7 +1043,7 @@ class AudioAnalysisController:
             processed += 1
 
         async def _worker() -> None:
-            while time.monotonic() < run_deadline:
+            while True:
                 candidate = next(pending, None)
                 if candidate is None:
                     return
@@ -1056,24 +1051,12 @@ class AudioAnalysisController:
 
         await asyncio.gather(*(_worker() for _ in range(concurrency)))
 
-        # Whatever the workers never pulled is what the run budget cut short.
-        deferred = sum(1 for _ in pending)
-
         elapsed = time.monotonic() - scan_started
-        if deferred:
-            self.logger.info(
-                "Background analysis: run-budget reached "
-                "(%d processed, %d deferred to next run, %.1fs elapsed)",
-                processed,
-                deferred,
-                elapsed,
-            )
-        else:
-            self.logger.info(
-                "Background analysis: complete (%d candidates processed in %.1fs)",
-                processed,
-                elapsed,
-            )
+        self.logger.info(
+            "Background analysis: complete (%d candidates processed in %.1fs)",
+            processed,
+            elapsed,
+        )
 
     async def _run_background_streaming_for_track(
         self,

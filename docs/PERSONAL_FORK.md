@@ -9,7 +9,7 @@ container is built, and how future upstream upgrades must be handled.
 Current personal version:
 
 ```text
-2.10.5.dev1
+2.10.5.dev2
 ```
 
 Upstream base:
@@ -19,14 +19,14 @@ Music Assistant 2.10.5
 452e23745588f01e734298e0a10e556fc140db45
 ```
 
-The `2.10.5.dev1` code was rebuilt from the official 2.10.5 commit as a clean base
+The `2.10.5.dev2` code was rebuilt from the official 2.10.5 commit as a clean base
 and all personal functionality was reapplied on top. The upstream commit is the
 direct parent of the personal integration commit.
 
 The personal ARM64 image is published as:
 
 ```text
-ghcr.io/rpmlourenco/server:2.10.5.dev1
+ghcr.io/rpmlourenco/server:2.10.5.dev2
 ```
 
 ## Design principles
@@ -329,7 +329,35 @@ tests/controllers/streams/test_audio_analysis.py
 This patch must be reviewed on every upstream upgrade and removed if upstream provides
 an equivalent fix.
 
-## 9. Personal image packaging
+## 9. Background audio-analysis scans run to exhaustion
+
+### Purpose
+
+The nightly background scan must eventually analyse every eligible local track, even
+when a large library takes longer than four hours to process.
+
+### Behaviour
+
+Each scheduled scan takes the current set of candidate tracks and continues until that
+set is exhausted. There is no global run deadline and no remaining-track deferral based
+on elapsed scan time.
+
+The existing per-track timeout and per-chunk hang safeguards remain in place, so one
+stalled track or analysis provider cannot block the scan indefinitely.
+
+The scheduled task retains the deterministic ID
+`audio_analysis_background_scan`. If another scheduled trigger occurs while that task
+is already `PENDING` or `RUNNING`, the task controller ignores the overlapping trigger
+and the existing scan continues.
+
+### Files
+
+```text
+music_assistant/controllers/streams/audio_analysis.py
+tests/controllers/streams/test_audio_analysis.py
+```
+
+## 10. Personal image packaging
 
 ### Purpose
 
@@ -360,7 +388,7 @@ The modified Python files are byte-compiled as an additional build-time check.
 Dockerfile.personal
 ```
 
-## 10. Automated validation and ARM64 publishing
+## 11. Automated validation and ARM64 publishing
 
 ### Purpose
 
@@ -377,7 +405,7 @@ The workflow:
 
 1. builds a native validation image from the official stable base;
 2. installs test/lint tooling into that disposable validation environment;
-3. runs the local-edition regression suite;
+3. runs the local-edition and background audio-analysis regression suites;
 4. runs the related filesystem, comparison and tag tests;
 5. runs permission-sensitive tests as an unprivileged user;
 6. runs repository pre-commit checks;
@@ -448,7 +476,7 @@ distinct during matching. Some subsequent commits temporarily reverted or supple
 that behaviour while the architecture was evaluated.
 
 The current implementation is the later import-time design represented by the
-`2.10.5.dev1` diff, including native release validation and the zero-I/O fast-rejection
+`2.10.5.dev2` diff, including native release validation and the zero-I/O fast-rejection
 path.
 
 When upgrading, preserve the current behaviour rather than blindly replaying every
