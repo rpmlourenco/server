@@ -198,6 +198,31 @@ class LocalEditionTests(unittest.IsolatedAsyncioTestCase):
             local_track("a"), local_track("b")
         )
 
+    async def test_conflicting_release_track_ids_do_not_read_native_files(self) -> None:
+        """Original/remaster ID conflicts are rejected without launching ffprobe."""
+        mass = MagicMock()
+        original = local_track("original", ORIGINAL_RELEASE, ORIGINAL_TRACK)
+        remaster = local_track("remaster", REMASTER_RELEASE, REMASTER_TRACK)
+        assert not await TracksController(mass)._confirm_library_candidate(original, remaster)
+        mass.get_provider.assert_not_called()
+
+    async def test_unrelated_recordings_do_not_read_native_files(self) -> None:
+        """A title collision with another recording never requires a filesystem lookup."""
+        mass = MagicMock()
+        first, second = local_track("a"), local_track("b")
+        second.external_ids = {(ExternalID.MB_RECORDING, ORIGINAL_RELEASE)}
+        assert not await TracksController(mass)._confirm_library_candidate(first, second)
+        mass.get_provider.assert_not_called()
+
+    async def test_unknown_editions_still_check_native_source(self) -> None:
+        """Fast rejection must not replace native edition validation for ambiguous matches."""
+        mass = MagicMock()
+        original, remaster = local_track("original"), local_track("remaster")
+        provider = mass.get_provider.return_value
+        provider.get_track = AsyncMock(return_value=original)
+        assert not await TracksController(mass)._confirm_library_candidate(original, remaster)
+        provider.get_track.assert_awaited_once_with(original.item_id)
+
     async def test_non_filesystem_provider_preserves_official_matching(self) -> None:
         """Other non-streaming providers are outside this local edition policy."""
         first, second = local_track("a"), local_track("b")

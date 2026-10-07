@@ -722,6 +722,15 @@ class TracksController(MediaControllerBase[Track]):
         if not incoming_local or not existing_local:
             return await super()._confirm_library_candidate(db_item, item)
 
+        # Reject incompatible candidates using the already loaded library metadata.
+        # A native lookup launches ffprobe and parses album/artist metadata, so doing
+        # that for every title or recording collision makes large imports very slow.
+        if (
+            compare_external_ids(db_item.external_ids, item.external_ids, ExternalID.MB_TRACK)
+            is False
+        ) or not compare_track(db_item, item, strict=True):
+            return False
+
         # Library albums and tracks can already aggregate several sources. Inspect the
         # native local track instead, so merged metadata or a shared streaming mapping
         # cannot turn two different local editions into an apparent exact match.
