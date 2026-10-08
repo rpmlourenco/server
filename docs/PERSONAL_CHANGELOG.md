@@ -2,6 +2,8 @@
 
 ## 2.10.5.dev3
 
+- Keep provider exports lazy and share Smart Fades band definitions in the analysis
+  model, so the portable PC worker does not import streaming/server controllers.
 - Add gzip JSON `.lda` sidecars for precomputed local FLAC audio analysis, with independent provider versions and a tag-independent PCM fingerprint.
 - Import valid sidecar results into SQLite during background scans before starting analysis; calculate only missing providers on the server.
 - Add an enabled-by-default setting to disable local background fallback and import precomputed results only.

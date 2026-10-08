@@ -19,6 +19,14 @@ from typing import Any
 
 from mashumaro import DataClassDictMixin
 
+# Band edges (Hz) shared by analysis and playback; None means up to Nyquist.
+BAND_RMS_BANDS: dict[str, tuple[float, float | None]] = {
+    "low": (20.0, 120.0),
+    "low_mid": (120.0, 400.0),
+    "mid": (400.0, 4000.0),
+    "high": (4000.0, None),
+}
+
 
 class AudioAnalysisError(Exception):
     """Raised by an Audio Analysis provider to fail the current analysis."""

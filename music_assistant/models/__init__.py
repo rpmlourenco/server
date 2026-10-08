@@ -2,13 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
-
-from .audio_analysis_provider import AudioAnalysisProvider
-from .metadata_provider import MetadataProvider
-from .music_provider import MusicProvider
-from .player_provider import PlayerProvider
-from .plugin import PluginProvider
+from importlib import import_module
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
@@ -17,10 +12,40 @@ if TYPE_CHECKING:
 
     from music_assistant.mass import MusicAssistant
 
+    from .audio_analysis_provider import AudioAnalysisProvider
+    from .metadata_provider import MetadataProvider
+    from .music_provider import MusicProvider
+    from .player_provider import PlayerProvider
+    from .plugin import PluginProvider
 
-ProviderInstanceType = (
-    AudioAnalysisProvider | MetadataProvider | MusicProvider | PlayerProvider | PluginProvider
-)
+    type ProviderInstanceType = (
+        AudioAnalysisProvider | MetadataProvider | MusicProvider | PlayerProvider | PluginProvider
+    )
+
+
+def __getattr__(name: str) -> Any:
+    """Lazily export providers without loading server controllers for submodule consumers."""
+    providers = {
+        "AudioAnalysisProvider": ".audio_analysis_provider",
+        "MetadataProvider": ".metadata_provider",
+        "MusicProvider": ".music_provider",
+        "PlayerProvider": ".player_provider",
+        "PluginProvider": ".plugin",
+    }
+    if name == "ProviderInstanceType":
+        value = (
+            __getattr__("AudioAnalysisProvider")
+            | __getattr__("MetadataProvider")
+            | __getattr__("MusicProvider")
+            | __getattr__("PlayerProvider")
+            | __getattr__("PluginProvider")
+        )
+    elif name in providers:
+        value = getattr(import_module(providers[name], __name__), name)
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    globals()[name] = value
+    return value
 
 
 class ProviderModuleType(Protocol):
