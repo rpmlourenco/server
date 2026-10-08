@@ -12,6 +12,7 @@
 - Verify all 12 current-version provider results in a consistent snapshot of the deployed Home Assistant database, including the four imported Sonic results and CLAP embeddings.
 - Enable offline CUDA inference for Sonic and Smart Fades, move S-KEY inputs and Sonic prompt embeddings with their models, and retain CPU-only quantization on the Home Assistant path.
 - Validate all four pilot tracks with CUDA models on an RTX 2080 Ti, preserving FLAC hashes and leaving the NAS sidecars unchanged; FFmpeg loudness and non-model preparation remain CPU operations.
+- Validate a 100-track CUDA/Samba batch: 300 provider results, zero errors, unchanged FLAC hashes, and 285 results imported into HA while preserving 15 current results; document throughput and provisional three-PC estimates.
 
 ## 2.10.5.dev2
 

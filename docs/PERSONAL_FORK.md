@@ -438,7 +438,40 @@ quantization in CUDA mode and moves VQT inputs to the model device. Sonic moves
 CLAP and prompt embeddings together. The Home Assistant defaults remain CPU.
 FFmpeg EBU R128 loudness measurement, decoding, and some DSP/preparation steps are
 CPU operations; the existing providers do not support an entirely GPU-only pipeline.
-No intermediate or full-library analysis batch has been started.
+The full-library analysis has not been started; the intermediate batch is documented below.
+
+### 100-track CUDA/Samba batch
+
+After the four-track GPU pilot, an intermediate batch selected one track from each
+of 100 artist groups, evenly spaced through the read-only 19,773-track inventory.
+It ran directly through `OfflineAudioAnalysisRunner`, the same persistent worker
+launched by FlacConverter's `analyze-audio`; the FlacConverter CLI wrapper itself
+was not used for this selection. Native Windows Python ran in the server checkout's
+CUDA virtual environment, not in Docker and not as a running Music Assistant server.
+
+All 100 tracks produced all three current-version sidecar results directly on the NAS
+(300 validated provider results), with zero failures and unchanged SHA-256 hashes for
+all FLAC files. The worker used CUDA with one job at a time and reused existing valid
+results rather than forcing replacement. Total wall time was 779.78 seconds (13 minutes),
+including model loading and full-file hash checks. Per-track analysis time averaged
+6.33 seconds (633.03 seconds total); it includes decoding and preparation, not just
+GPU kernels. Peak PyTorch allocated VRAM was 527.34 MiB. Five NVIDIA samples showed
+10-29% GPU utilization, illustrating the remaining CPU/I/O work.
+
+A manual HA scan with background fallback disabled imported exactly 285 provider
+results in 15.8 seconds: 93 Loudness, 92 Smart Fades, and 100 Sonic. The other 15
+results were already current and were preserved. API coverage deltas confirmed these
+counts; no recorded analysis failures matched the 100 selected tracks. The resulting
+current-version library coverage was 868 Loudness, 1,028 Smart Fades, and 108 Sonic.
+
+The sample projects about 35 hours of analysis on this PC for 19,773 tracks, or
+43 hours if full-file pre/post hash verification is retained. Three equal-throughput
+PCs would ideally take about 12-14 hours. A provisional planning range of 12-20 hours
+for the RTX 2080 Ti desktop, RTX 4070 desktop, and RTX 2080 laptop must be confirmed
+by running the same benchmark on the other PCs; GPU names alone do not determine
+end-to-end throughput. NAS contention, CPU work, track lengths, thermal limits, and
+load balancing matter. No distributed coordinator or full-library run was implemented
+or started. Concurrent PCs must receive disjoint track assignments.
 
 Focused regression validation passed 145 tests covering the offline runner, sidecars,
 Sonic, and Smart Fades, plus mypy on all six changed Python files. The all-files Linux
