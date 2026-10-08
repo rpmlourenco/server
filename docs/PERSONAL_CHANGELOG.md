@@ -9,6 +9,7 @@
 - Keep playback based on SQLite, without reading sidecars during playback or modifying FLAC tags.
 - Include the new modules in the personal image and validate sidecar import and offline computation before publishing ARM64 builds.
 - Validate a four-track Samba pilot with all three providers, successful reuse, and unchanged FLAC SHA-256 hashes.
+- Verify all 12 current-version provider results in a consistent snapshot of the deployed Home Assistant database, including the four imported Sonic results and CLAP embeddings.
 
 ## 2.10.5.dev2
 

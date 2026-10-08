@@ -400,8 +400,29 @@ requirements at the versions in their manifests.
 
 The 2026-10-08 Samba pilot on the four-track `4 Non Blondes / What's Up` EP completed
 all three providers in about 60 seconds, reused all results on a second run, and
-preserved the SHA-256 of every FLAC. This validates PC computation and Samba sidecar
-publication; import into the deployed Home Assistant instance still needs validation.
+preserved the SHA-256 of every FLAC. Import into the deployed Home Assistant instance
+was also validated: a consistent snapshot taken with the add-on stopped contained all
+12 provider results (four tracks, three providers), at the current algorithm versions
+and with all expected fields present. All four Sonic results matched their sidecars,
+including the 1024-value CLAP embeddings. Existing current-version analyses are retained
+rather than overwritten; the scan counter counts imported provider results, not files.
+
+### Next validation step: GPU pilot
+
+Before an intermediate batch or full-library execution, validate GPU computation on
+only a few FLAC files. As of 2026-10-08, the pilot PC has an NVIDIA RTX 2080 Ti with
+11 GB VRAM, but the server virtual environment contains CPU-only PyTorch
+(`2.13.0+cpu`), so CUDA is not available to the worker yet. The worker currently sets
+the requested device for Smart Fades only; Sonic explicitly loads CLAP with
+`use_cuda=False`. Do not treat `--device cuda` as proof that both models use the GPU.
+
+The pending work is to prepare a CUDA-capable local environment, support the requested
+device for offline Sonic without changing the Home Assistant CPU default, and verify
+actual model device placement, GPU memory use, timings, and valid results on a small
+pilot. No GPU implementation or intermediate analysis batch has been started.
+Virtual environments, model caches, credentials, and database snapshots are local
+artifacts, not portable source code; recreate them on another PC and keep secrets out
+of Git. Use this branch together with FlacConverter's `codex/flac-converter-2` branch.
 
 ## 10. Personal image packaging
 
