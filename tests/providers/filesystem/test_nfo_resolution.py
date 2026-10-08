@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from music_assistant_models.enums import AlbumType, ExternalID
 from music_assistant_models.errors import InvalidDataError, MediaNotFoundError
-from music_assistant_models.media_items import Album, ItemMapping, ProviderMapping
+from music_assistant_models.media_items import Album, ItemMapping, ProviderMapping, UniqueList
 
 from music_assistant.controllers.cache import BYPASS_CACHE
 from music_assistant.helpers.util import parse_title_and_version
@@ -1123,7 +1123,7 @@ async def test_get_album_ignores_duplicate_track_mappings_from_other_albums(
         item_id="1407",
         provider="library",
         name=expected_name,
-        artists=[artist],
+        artists=UniqueList([artist]),
         provider_mappings=set(),
     )
     provider.mass.music.albums.get_library_item_by_prov_id = AsyncMock(return_value=library_album)
@@ -1159,14 +1159,14 @@ async def test_get_album_ignores_duplicate_track_mappings_from_other_albums(
         item_id="The Cure/Greatest Hits",
         provider=INSTANCE_ID,
         name="Greatest Hits",
-        artists=[artist],
+        artists=UniqueList([artist]),
         provider_mappings=set(),
     )
     expected_album = Album(
         item_id=expected_folder,
         provider=INSTANCE_ID,
         name=expected_name,
-        artists=[artist],
+        artists=UniqueList([artist]),
         provider_mappings=set(),
     )
     provider._parse_track = AsyncMock(

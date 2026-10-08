@@ -53,7 +53,7 @@ jobs:
             export UV_PROJECT_ENVIRONMENT="$(python -c "import sys; print(sys.prefix)")"
             export UV_NO_SYNC=1
             git config --global --add safe.directory /src
-            SKIP=mypy pre-commit run --all-files
+            pre-commit run --all-files
             mypy music_assistant/controllers/music/media/tracks.py music_assistant/helpers/tags.py music_assistant/providers/filesystem_local/__init__.py
             mypy music_assistant/helpers/audio_analysis_sidecar.py music_assistant/helpers/offline_audio_analysis.py music_assistant/providers/audio_analysis_versions.py
           '

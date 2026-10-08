@@ -571,6 +571,7 @@ async def test_run_background_scan_imports_sidecar_before_starting_providers(
 
     background_streaming.assert_not_awaited()
     controller.set_audio_analysis.assert_awaited_once()
+    assert controller.set_audio_analysis.await_args is not None
     call = controller.set_audio_analysis.await_args.kwargs
     assert call["aa_provider_domain"] == "smart_fades"
     assert call["analysis_version"] == 3
@@ -619,7 +620,9 @@ async def test_run_background_scan_falls_back_only_for_missing_sidecar_provider(
     music_provider.get_stream_details = AsyncMock(return_value=streamdetails)
     controller.mass.get_provider = MagicMock(return_value=music_provider)  # type: ignore[method-assign]
     controller.set_audio_analysis = AsyncMock()  # type: ignore[method-assign]
-    controller.mass.config.get_raw_core_config_value.return_value = True
+    monkeypatch.setattr(
+        controller.mass.config, "get_raw_core_config_value", MagicMock(return_value=True)
+    )
     background_streaming = AsyncMock()
     monkeypatch.setattr(controller, "_run_background_streaming_for_track", background_streaming)
 
@@ -661,7 +664,9 @@ async def test_run_background_scan_can_disable_local_sidecar_fallback(
     music_provider = MagicMock(available=True)
     music_provider.get_stream_details = AsyncMock(return_value=streamdetails)
     controller.mass.get_provider = MagicMock(return_value=music_provider)  # type: ignore[method-assign]
-    controller.mass.config.get_raw_core_config_value.return_value = False
+    monkeypatch.setattr(
+        controller.mass.config, "get_raw_core_config_value", MagicMock(return_value=False)
+    )
     background_streaming = AsyncMock()
     monkeypatch.setattr(controller, "_run_background_streaming_for_track", background_streaming)
 

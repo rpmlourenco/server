@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import unittest
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from copy import deepcopy
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -145,6 +146,8 @@ class LocalEditionTests(unittest.IsolatedAsyncioTestCase):
     def test_synthetic_album_identity_cannot_merge_unknown_editions(self) -> None:
         """A title-derived album ID without a physical source is not edition evidence."""
         first, second = local_track("The Cure/Album"), local_track("The Cure/Album")
+        assert isinstance(first.album, Album)
+        assert isinstance(second.album, Album)
         first.album.provider_mappings = second.album.provider_mappings = set()
         assert not TracksController._same_local_release(first, second)
 
@@ -236,25 +239,37 @@ class LocalEditionTests(unittest.IsolatedAsyncioTestCase):
     def test_tag_formats_keep_recording_and_release_track_distinct(self) -> None:
         """FLAC, APEv2, MP3 and M4A use their respective MusicBrainz conventions."""
         # Imports here keep the unittest entry point usable in the installed image.
+        from mutagen._vorbis import VCommentDict  # noqa: PLC0415
+        from mutagen.apev2 import APEv2  # noqa: PLC0415
         from mutagen.id3 import ID3, TXXX, UFID  # noqa: PLC0415
+        from mutagen.mp4 import MP4Tags  # noqa: PLC0415
 
-        id3 = ID3()
-        id3.add(UFID(owner="http://musicbrainz.org", data=RECORDING.encode()))
-        id3.add(TXXX(encoding=3, desc="MusicBrainz Release Track Id", text=[ORIGINAL_TRACK]))
+        id3 = cast("Callable[[], ID3]", ID3)()
+        add_frame = cast("Callable[[object], None]", id3.add)
+        add_frame(
+            cast("Callable[..., object]", UFID)(
+                owner="http://musicbrainz.org", data=RECORDING.encode()
+            )
+        )
+        add_frame(
+            cast("Callable[..., object]", TXXX)(
+                encoding=3, desc="MusicBrainz Release Track Id", text=[ORIGINAL_TRACK]
+            )
+        )
+        mp4 = cast("Callable[[], MP4Tags]", MP4Tags)()
+        mp4["----:com.apple.iTunes:MusicBrainz Track Id"] = [RECORDING.encode()]
+        mp4["----:com.apple.iTunes:MusicBrainz Release Track Id"] = [ORIGINAL_TRACK.encode()]
+        vorbis = cast("Callable[[], VCommentDict]", VCommentDict)()
+        vorbis["MUSICBRAINZ_TRACKID"] = [RECORDING]
+        vorbis["MUSICBRAINZ_RELEASETRACKID"] = [ORIGINAL_TRACK]
+        ape = cast("Callable[[], APEv2]", APEv2)()
+        ape["MUSICBRAINZ_TRACKID"] = RECORDING
+        ape["MUSICBRAINZ_RELEASETRACKID"] = ORIGINAL_TRACK
         parsed = [
             _parse_id3_tags(id3),
-            _parse_mp4_tags(
-                {
-                    "----:com.apple.iTunes:MusicBrainz Track Id": [RECORDING.encode()],
-                    "----:com.apple.iTunes:MusicBrainz Release Track Id": [ORIGINAL_TRACK.encode()],
-                }
-            ),
-            _parse_vorbis_tags(
-                {"MUSICBRAINZ_TRACKID": [RECORDING], "MUSICBRAINZ_RELEASETRACKID": [ORIGINAL_TRACK]}
-            ),
-            _parse_apev2_tags(
-                {"MUSICBRAINZ_TRACKID": RECORDING, "MUSICBRAINZ_RELEASETRACKID": ORIGINAL_TRACK}
-            ),
+            _parse_mp4_tags(mp4),
+            _parse_vorbis_tags(vorbis),
+            _parse_apev2_tags(ape),
         ]
         for tags in parsed:
             assert tags.get("musicbrainzrecordingid", tags.get("musicbrainztrackid")) == RECORDING
@@ -317,12 +332,16 @@ async def test_import_same_identified_release_dedupes(music: MusicController) ->
 async def test_album_version_survives_full_summary_and_queue(music: MusicController) -> None:
     """Edition metadata remains available in library lists and serialized queue items."""
     source = local_track("remaster", REMASTER_RELEASE)
+    assert isinstance(source.album, Album)
     source.album.version = "2006 Remaster"
     stored = await music.tracks.add_item_to_library(source)
     summary = (await music.tracks.library_items(summary=True))[0]
+    assert stored.album is not None
+    assert summary.album is not None
     assert stored.album.version == "2006 Remaster"
     assert summary.album.version == "2006 Remaster"
     item = QueueItem.from_media_item("q1", stored)
+    assert item.media_item is not None
     assert item.media_item.to_dict()["album"]["version"] == "2006 Remaster"
 
 

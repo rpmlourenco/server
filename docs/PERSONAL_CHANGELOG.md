@@ -1,5 +1,12 @@
 # Personal Music Assistant changelog
 
+## Main maintenance after 2.10.5.dev4
+
+- Fix the 20 existing test typing errors with explicit optional-value assertions,
+  correctly typed mocks, real Mutagen tag containers and UniqueList artist fixtures.
+- Restore the global mypy pre-commit gate for future image publications. These
+  test-only corrections do not change the runtime code tagged as 2.10.5.dev4.
+
 ## 2.10.5.dev4
 
 - Maintain the personal fork on `main`; identify published versions with Git tags
