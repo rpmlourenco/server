@@ -407,19 +407,46 @@ and with all expected fields present. All four Sonic results matched their sidec
 including the 1024-value CLAP embeddings. Existing current-version analyses are retained
 rather than overwritten; the scan counter counts imported provider results, not files.
 
-### Next validation step: GPU pilot
+### GPU pilot and reproducible Windows setup
 
-Before an intermediate batch or full-library execution, validate GPU computation on
-only a few FLAC files. As of 2026-10-08, the pilot PC has an NVIDIA RTX 2080 Ti with
-11 GB VRAM, but the server virtual environment contains CPU-only PyTorch
-(`2.13.0+cpu`), so CUDA is not available to the worker yet. The worker currently sets
-the requested device for Smart Fades only; Sonic explicitly loads CLAP with
-`use_cuda=False`. Do not treat `--device cuda` as proof that both models use the GPU.
+The 2026-10-08 GPU pilot used local copies of the same four FLACs, preserving the NAS
+sidecars. The original CPU-only PyTorch was replaced in the local offline environment
+by the available matched Windows/Python 3.14 CUDA pair:
 
-The pending work is to prepare a CUDA-capable local environment, support the requested
-device for offline Sonic without changing the Home Assistant CPU default, and verify
-actual model device placement, GPU memory use, timings, and valid results on a small
-pilot. No GPU implementation or intermediate analysis batch has been started.
+```powershell
+uv pip install --python .venv/Scripts/python.exe --index-url https://download.pytorch.org/whl/cu128 --no-deps torch==2.11.0+cu128 torchaudio==2.11.0+cu128
+.venv/Scripts/python.exe -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name())"
+```
+
+This is a tested offline environment override, not a change to the server's upstream
+dependency pins or Docker/HA runtime. A normal `uv sync` restores the CPU-pinned
+project environment; reapply the override before GPU use. Install the other server
+and provider dependencies first. The driver must support CUDA 12.8 and the wheel
+must support the GPU architecture; do not assume another PC is compatible.
+
+On the RTX 2080 Ti, real model parameter devices were confirmed as `cuda:0` for
+Beat This, S-KEY, FireRed, and CLAP, as were the Sonic prompt embeddings. All four
+tracks completed all three providers without errors in 35.24 seconds including
+8.22 seconds of model loading. Individual track times were 7.24, 7.11, 5.32, and
+6.81 seconds. Peak PyTorch allocated VRAM was 391.31 MiB; this is not total process
+or driver VRAM. Every copied FLAC retained its SHA-256. These timings use local
+copies and are not a controlled speed comparison with the earlier Samba CPU pilot.
+
+CUDA is selected explicitly with `analyze-audio --device cuda`; current sidecars
+are still reused unless `--force` is requested. Smart Fades skips CPU-only dynamic
+quantization in CUDA mode and moves VQT inputs to the model device. Sonic moves
+CLAP and prompt embeddings together. The Home Assistant defaults remain CPU.
+FFmpeg EBU R128 loudness measurement, decoding, and some DSP/preparation steps are
+CPU operations; the existing providers do not support an entirely GPU-only pipeline.
+No intermediate or full-library analysis batch has been started.
+
+Focused regression validation passed 145 tests covering the offline runner, sidecars,
+Sonic, and Smart Fades, plus mypy on all six changed Python files. The all-files Linux
+pre-commit run exposed 20 existing mypy
+errors in unrelated local-edition/filesystem/streams tests; those files were not changed
+for this GPU work. Windows cannot run the Bash-based hooks without a working Bash/WSL
+environment. The GPU changes are for the checked-out PC worker; no new HA image is
+published as part of this pilot.
 Virtual environments, model caches, credentials, and database snapshots are local
 artifacts, not portable source code; recreate them on another PC and keep secrets out
 of Git. Use this branch together with FlacConverter's `codex/flac-converter-2` branch.

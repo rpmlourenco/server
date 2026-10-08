@@ -213,9 +213,11 @@ class SmartFadesProvider(AudioAnalysisProvider):
         quantized_engine = next((e for e in preference if e in supported_engines), None)
         if quantized_engine is not None and torch.backends.quantized.engine != quantized_engine:
             torch.backends.quantized.engine = quantized_engine
-        beat_this_model.model = torch.ao.quantization.quantize_dynamic(  # type: ignore[no-untyped-call]
-            beat_this_model.model, {torch.nn.Linear}, dtype=torch.qint8
-        )
+        # Dynamic quantized Linear kernels run on CPU, not CUDA.
+        if self._device == "cpu":
+            beat_this_model.model = torch.ao.quantization.quantize_dynamic(  # type: ignore[no-untyped-call]
+                beat_this_model.model, {torch.nn.Linear}, dtype=torch.qint8
+            )
         beat_this_post_processor = DBNDownBeatTracker(
             beats_per_bar=[3, 4], min_bpm=55, max_bpm=215, fps=50
         )
@@ -610,11 +612,13 @@ class SmartFadesProvider(AudioAnalysisProvider):
         models = self._require_models()
         if sample_rate != ANALYSIS_SAMPLE_RATE:
             pcm_mono = soxr.resample(pcm_mono, sample_rate, ANALYSIS_SAMPLE_RATE)
-        pcm_tensor = torch.from_numpy(pcm_mono)
+        pcm_tensor = torch.from_numpy(pcm_mono).to(self._device)
         with torch.inference_mode():
             vqt_input = pcm_tensor.unsqueeze(0).unsqueeze(0)  # (1, 1, samples)
             vqt_out = models.skey_vqt(vqt_input)  # (1, 1, n_bins, T)
-            cropped = models.skey_crop(vqt_out, torch.zeros(1))  # (1, 1, 84, T)
+            cropped = models.skey_crop(
+                vqt_out, torch.zeros(1, device=self._device)
+            )  # (1, 1, 84, T)
             data.musical_key_feature_blocks.append(cropped.cpu())
 
     def _infer_musical_key(

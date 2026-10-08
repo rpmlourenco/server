@@ -457,9 +457,13 @@ async def test_setup_raises_when_requirements_not_met(
         await smart_fades.setup(mass_mock, manifest_mock, config_mock)
 
 
-def test_initialize_models_uses_expected_components(provider: SmartFadesProvider) -> None:
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_initialize_models_uses_expected_components(
+    provider: SmartFadesProvider, device: str
+) -> None:
     """Model initialization wires the expected local and third-party components."""
     beat_model = Mock()
+    provider._device = device
     original_beat_module = beat_model.model
     quantized_beat_module = Mock()
     beat_post_processor = Mock()
@@ -497,13 +501,17 @@ def test_initialize_models_uses_expected_components(provider: SmartFadesProvider
     ):
         models = provider._initialize_models()
 
-    spect2frames.assert_called_once_with(checkpoint_path="small0", device="cpu")
-    quantize_dynamic.assert_called_once_with(
-        original_beat_module,
-        {torch.nn.Linear},
-        dtype=torch.qint8,
-    )
-    assert beat_model.model is quantized_beat_module
+    spect2frames.assert_called_once_with(checkpoint_path="small0", device=device)
+    if device == "cpu":
+        quantize_dynamic.assert_called_once_with(
+            original_beat_module,
+            {torch.nn.Linear},
+            dtype=torch.qint8,
+        )
+        assert beat_model.model is quantized_beat_module
+    else:
+        quantize_dynamic.assert_not_called()
+        assert beat_model.model is original_beat_module
     assert models.beat_this is beat_model
     assert models.beat_this_post_processor is beat_post_processor
     assert models.skey_vqt is skey_vqt
@@ -513,6 +521,24 @@ def test_initialize_models_uses_expected_components(provider: SmartFadesProvider
     assert models.firered is firered_model
     assert models.firered_cmvn_means is cmvn_means
     assert models.firered_cmvn_inverse_std is cmvn_inverse_std
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_key_feature_inputs_follow_model_device(provider: SmartFadesProvider, device: str) -> None:
+    """VQT audio and crop offsets must follow the offline inference device."""
+    provider._device = device
+    data = Mock()
+    data.musical_key_feature_blocks = []
+    with (
+        patch("music_assistant.providers.smart_fades.provider.torch.from_numpy") as from_numpy,
+        patch("music_assistant.providers.smart_fades.provider.torch.zeros") as zeros,
+    ):
+        provider._compute_musical_key_features(
+            np.zeros(22050, dtype=np.float32), ANALYSIS_SAMPLE_RATE, data
+        )
+    from_numpy.return_value.to.assert_called_once_with(device)
+    zeros.assert_called_once_with(1, device=device)
+    assert len(data.musical_key_feature_blocks) == 1
 
 
 def test_free_models_releases_the_whole_set(provider: SmartFadesProvider) -> None:

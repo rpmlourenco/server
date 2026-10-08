@@ -302,8 +302,9 @@ class OfflineAudioAnalysisRunner:
                 provider.available = True
                 self._providers[domain] = provider
 
-            if domain == "smart_fades":
+            if domain in ("smart_fades", "sonic_analysis"):
                 provider._device = self._resolve_torch_device()  # type: ignore[attr-defined]
+                LOGGER.info("Offline %s model device: %s", domain, provider._device)  # type: ignore[attr-defined]
             if provider.has_unloadable_models:
                 await provider._load_models()
                 provider._models_loaded = True

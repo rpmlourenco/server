@@ -312,6 +312,7 @@ class SonicAnalysisProvider(AudioAnalysisProvider):
     ) -> None:
         """Initialize the provider."""
         super().__init__(mass, manifest, config, supported_features)
+        self._device = "cpu"
         self._clap_model: Any = None
         self._clap_text_embeddings: Any = None
         self._clap_prompt_order: list[tuple[str, tuple[str, str]]] = []
@@ -467,7 +468,7 @@ class SonicAnalysisProvider(AudioAnalysisProvider):
                 translation_owner=self.translation_owner,
             )
         try:
-            model = CLAP(version="2023", use_cuda=False, text_enabled=False)
+            model = CLAP(version="2023", use_cuda=self._device == "cuda", text_enabled=False)
         except (OSError, httpx.HTTPError) as err:
             # The hub reports most failures as OSError, but re-raises httpx transport errors
             # verbatim once its resume attempts are spent; only typed errors get retried.
@@ -477,7 +478,7 @@ class SonicAnalysisProvider(AudioAnalysisProvider):
                 translation_owner=self.translation_owner,
             ) from err
         self.logger.info("CLAP model loaded; %d prompt pairs ready", len(prompt_order))
-        return model, torch.from_numpy(cached), prompt_order
+        return model, torch.from_numpy(cached).to(self._device), prompt_order
 
     def _try_load_cached_prompt_embeddings(self) -> np.ndarray | None:
         """Return shipped prompt embeddings if present and hash-current, else None."""

@@ -279,6 +279,24 @@ def test_missing_prompt_embeddings_fail_instead_of_downloading_a_text_encoder() 
 # --- _start_analysis gating ---
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_clap_model_and_prompt_embeddings_use_the_same_device(device: str) -> None:
+    """CPU remains the server default; offline CUDA moves prompts with the model."""
+    provider = _make_provider()
+    assert provider._device == "cpu"
+    provider._device = device
+    with (
+        patch.object(provider, "_try_load_cached_prompt_embeddings", return_value=MagicMock()),
+        patch("music_assistant.providers.sonic_analysis.vendored_clap.CLAP") as clap_cls,
+        patch("torch.from_numpy") as from_numpy,
+    ):
+        model, embeddings, _ = provider._load_clap()
+    clap_cls.assert_called_once_with(version="2023", use_cuda=device == "cuda", text_enabled=False)
+    from_numpy.return_value.to.assert_called_once_with(device)
+    assert model is clap_cls.return_value
+    assert embeddings is from_numpy.return_value.to.return_value
+
+
 @pytest.mark.asyncio
 async def test_start_analysis_declines_while_clap_is_unavailable() -> None:
     """``_start_analysis`` must decline tracks while CLAP is unavailable."""

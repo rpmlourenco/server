@@ -10,6 +10,8 @@
 - Include the new modules in the personal image and validate sidecar import and offline computation before publishing ARM64 builds.
 - Validate a four-track Samba pilot with all three providers, successful reuse, and unchanged FLAC SHA-256 hashes.
 - Verify all 12 current-version provider results in a consistent snapshot of the deployed Home Assistant database, including the four imported Sonic results and CLAP embeddings.
+- Enable offline CUDA inference for Sonic and Smart Fades, move S-KEY inputs and Sonic prompt embeddings with their models, and retain CPU-only quantization on the Home Assistant path.
+- Validate all four pilot tracks with CUDA models on an RTX 2080 Ti, preserving FLAC hashes and leaving the NAS sidecars unchanged; FFmpeg loudness and non-model preparation remain CPU operations.
 
 ## 2.10.5.dev2
 
