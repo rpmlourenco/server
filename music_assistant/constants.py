@@ -193,6 +193,7 @@ CONF_PROTOCOL_CATEGORY_PREFIX: Final[str] = "protocol"
 CONF_PLUGIN_KEY_SPLITTER: Final[str] = "||plugin||"
 CONF_DEFAULT_PROVIDERS_SETUP: Final[str] = "default_providers_setup"
 CONF_BACKGROUND_SCAN_CONCURRENCY: Final[str] = "background_scan_concurrency"
+CONF_PRECOMPUTED_ANALYSIS_FALLBACK: Final[str] = "precomputed_analysis_fallback"
 
 # Tri-state option VALUES for per-queue settings that can follow the global (queue controller)
 # default. "global" resolves to the queue-controller value (like the log_level "GLOBAL" pattern);

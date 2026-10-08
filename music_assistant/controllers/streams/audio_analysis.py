@@ -23,6 +23,7 @@ from music_assistant_models.media_items import AudioMetadata
 
 from music_assistant.constants import (
     CONF_BACKGROUND_SCAN_CONCURRENCY,
+    CONF_PRECOMPUTED_ANALYSIS_FALLBACK,
     DB_TABLE_AUDIO_ANALYSIS,
     DB_TABLE_AUDIO_ANALYSIS_FAILURES,
     DB_TABLE_PROVIDER_MAPPINGS,
@@ -32,6 +33,10 @@ from music_assistant.constants import (
 )
 from music_assistant.controllers.streams.audio_buffer import AudioBufferDiscarded, AudioBufferEOF
 from music_assistant.helpers.api import api_command
+from music_assistant.helpers.audio_analysis_sidecar import (
+    AudioAnalysisSidecarError,
+    read_audio_analysis_sidecar,
+)
 from music_assistant.helpers.datetime import local_clock_time_to_utc, utc_timestamp
 from music_assistant.helpers.json import json_dumps, json_loads
 from music_assistant.helpers.util import inference_thread_budget, is_arm
@@ -997,13 +1002,20 @@ class AudioAnalysisController:
         )
 
         concurrency = self._get_scan_concurrency()
+        fallback_enabled = (
+            self.mass.config.get_raw_core_config_value(
+                "streams", CONF_PRECOMPUTED_ANALYSIS_FALLBACK, True
+            )
+            is not False
+        )
         provider_by_domain = {p.domain: p for p in providers}
         pending = iter(candidates)
 
         processed = 0
+        imported_results = 0
 
         async def _run_one(candidate: dict[str, Any]) -> None:
-            nonlocal processed
+            nonlocal imported_results, processed
             item_id = candidate["item_id"]
             provider_instance = candidate["provider_instance"]
             missing = candidate["missing_domains"]
@@ -1028,18 +1040,25 @@ class AudioAnalysisController:
             if not isinstance(streamdetails.path, str) or not streamdetails.path:
                 return
 
+            imported = await self._import_precomputed_analysis(
+                streamdetails,
+                {
+                    domain: provider_by_domain[domain].analysis_version
+                    for domain in missing
+                    if domain in provider_by_domain
+                },
+            )
+            imported_results += len(imported)
             providers_for_track = [
                 p
                 for p in (provider_by_domain.get(d) for d in missing)
-                if p is not None and p.available
+                if fallback_enabled and p is not None and p.available and p.domain not in imported
             ]
-            if not providers_for_track:
-                return
-
-            await self._run_background_streaming_for_track(
-                streamdetails,
-                providers_for_track,
-            )
+            if providers_for_track:
+                await self._run_background_streaming_for_track(
+                    streamdetails,
+                    providers_for_track,
+                )
             processed += 1
 
         async def _worker() -> None:
@@ -1053,10 +1072,68 @@ class AudioAnalysisController:
 
         elapsed = time.monotonic() - scan_started
         self.logger.info(
-            "Background analysis: complete (%d candidates processed in %.1fs)",
+            "Background analysis: complete (%d candidates processed, %d sidecar result(s) "
+            "imported in %.1fs)",
             processed,
+            imported_results,
             elapsed,
         )
+
+    async def _import_precomputed_analysis(
+        self,
+        streamdetails: StreamDetails,
+        expected_versions: Mapping[str, int],
+    ) -> set[str]:
+        """
+        Import valid sidecar results for one background-scan track.
+
+        :param streamdetails: Stream details for the candidate track.
+        :param expected_versions: Missing provider domains and their current versions.
+        :return: Provider domains successfully persisted to SQLite.
+        """
+        if not expected_versions or not isinstance(streamdetails.path, str):
+            return set()
+        try:
+            analyses = await asyncio.to_thread(
+                read_audio_analysis_sidecar,
+                streamdetails.path,
+                expected_versions,
+            )
+        except FileNotFoundError:
+            return set()
+        except AudioAnalysisSidecarError as err:
+            self.logger.warning(
+                "Ignoring audio-analysis sidecar for %s: %s", streamdetails.uri, err
+            )
+            return set()
+
+        imported: set[str] = set()
+        for domain, (version, analysis) in analyses.items():
+            try:
+                await self.set_audio_analysis(
+                    item_id=streamdetails.item_id,
+                    provider_instance_id_or_domain=streamdetails.provider,
+                    aa_provider_domain=domain,
+                    analysis=analysis,
+                    analysis_version=version,
+                    media_type=streamdetails.media_type,
+                )
+            except Exception as err:
+                self.logger.warning(
+                    "Failed to import %s sidecar result for %s: %s",
+                    domain,
+                    streamdetails.uri,
+                    err,
+                )
+                continue
+            imported.add(domain)
+        if imported:
+            self.logger.debug(
+                "Imported precomputed analysis for %s: %s",
+                streamdetails.uri,
+                ", ".join(sorted(imported)),
+            )
+        return imported
 
     async def _run_background_streaming_for_track(
         self,

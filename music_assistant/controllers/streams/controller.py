@@ -51,6 +51,7 @@ from music_assistant.constants import (
     CONF_HTTP_PROFILE,
     CONF_OUTPUT_CODEC,
     CONF_PLAYER_QUEUES,
+    CONF_PRECOMPUTED_ANALYSIS_FALLBACK,
     CONF_PREFER_WAV_FOR_LIVE_SOURCES,
     CONF_PUBLISH_IP,
     CONF_VALUE_AUTO,
@@ -479,6 +480,12 @@ class StreamsController(CoreController):
                 type=ConfigEntryType.INTEGER,
                 range=(1, 16),
                 default_value=DEFAULT_BACKGROUND_SCAN_CONCURRENCY,
+                category="audio_analysis",
+            ),
+            ConfigEntry(
+                key=CONF_PRECOMPUTED_ANALYSIS_FALLBACK,
+                type=ConfigEntryType.BOOLEAN,
+                default_value=True,
                 category="audio_analysis",
             ),
         )

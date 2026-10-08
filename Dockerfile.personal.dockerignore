@@ -1,0 +1,6 @@
+**
+!music_assistant/
+!music_assistant/**/
+!music_assistant/**/*.py
+!music_assistant/**/strings.json
+!music_assistant/translations/en.json

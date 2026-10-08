@@ -520,6 +520,157 @@ async def test_run_background_scan_uses_union_candidate_query(
 
 
 @pytest.mark.asyncio
+async def test_run_background_scan_imports_sidecar_before_starting_providers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """A complete sidecar result reaches SQLite without decoding or loading a provider."""
+    controller = _make_controller()
+    provider = _make_aa_provider("prov-1", available=True)
+    provider.domain = "smart_fades"
+    provider.analysis_version = 3
+    monkeypatch.setattr(
+        controller.__class__,
+        "providers",
+        property(lambda _self: [provider]),
+    )
+    monkeypatch.setattr(
+        controller,
+        "_find_candidates_missing_analysis",
+        AsyncMock(
+            return_value=[
+                {
+                    "item_id": "track-1",
+                    "provider_instance": "filesystem_local",
+                    "missing_domains": ["smart_fades"],
+                }
+            ]
+        ),
+    )
+
+    audio_path = tmp_path / "track.flac"
+    monkeypatch.setattr(
+        audio_analysis_mod,
+        "read_audio_analysis_sidecar",
+        lambda _path, _versions: {
+            "smart_fades": (3, AudioAnalysisData(bpm=92.4, beats=[0.5, 1.0]))
+        },
+    )
+    streamdetails = _make_streamdetails(path=str(audio_path), item_id="track-1")
+    streamdetails.stream_type = StreamType.LOCAL_FILE
+    streamdetails.media_type = MediaType.TRACK
+
+    music_provider = MagicMock()
+    music_provider.available = True
+    music_provider.get_stream_details = AsyncMock(return_value=streamdetails)
+    controller.mass.get_provider = MagicMock(return_value=music_provider)  # type: ignore[method-assign]
+    controller.set_audio_analysis = AsyncMock()  # type: ignore[method-assign]
+    background_streaming = AsyncMock()
+    monkeypatch.setattr(controller, "_run_background_streaming_for_track", background_streaming)
+
+    await controller._run_background_scan()
+
+    background_streaming.assert_not_awaited()
+    controller.set_audio_analysis.assert_awaited_once()
+    call = controller.set_audio_analysis.await_args.kwargs
+    assert call["aa_provider_domain"] == "smart_fades"
+    assert call["analysis_version"] == 3
+    assert call["analysis"].bpm == 92.4
+
+
+@pytest.mark.asyncio
+async def test_run_background_scan_falls_back_only_for_missing_sidecar_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A partial sidecar is imported while the remaining provider runs on the HA host."""
+    controller = _make_controller()
+    smart_fades = _make_aa_provider("smart", available=True)
+    smart_fades.domain = "smart_fades"
+    smart_fades.analysis_version = 3
+    sonic = _make_aa_provider("sonic", available=True)
+    sonic.domain = "sonic_analysis"
+    sonic.analysis_version = 1
+    monkeypatch.setattr(
+        controller.__class__,
+        "providers",
+        property(lambda _self: [smart_fades, sonic]),
+    )
+    monkeypatch.setattr(
+        controller,
+        "_find_candidates_missing_analysis",
+        AsyncMock(
+            return_value=[
+                {
+                    "item_id": "track-1",
+                    "provider_instance": "filesystem_local",
+                    "missing_domains": ["smart_fades", "sonic_analysis"],
+                }
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        audio_analysis_mod,
+        "read_audio_analysis_sidecar",
+        lambda _path, _versions: {"smart_fades": (3, AudioAnalysisData(bpm=92.4))},
+    )
+    streamdetails = _make_streamdetails(path="track.flac", item_id="track-1")
+    streamdetails.stream_type = StreamType.LOCAL_FILE
+    streamdetails.media_type = MediaType.TRACK
+    music_provider = MagicMock(available=True)
+    music_provider.get_stream_details = AsyncMock(return_value=streamdetails)
+    controller.mass.get_provider = MagicMock(return_value=music_provider)  # type: ignore[method-assign]
+    controller.set_audio_analysis = AsyncMock()  # type: ignore[method-assign]
+    controller.mass.config.get_raw_core_config_value.return_value = True
+    background_streaming = AsyncMock()
+    monkeypatch.setattr(controller, "_run_background_streaming_for_track", background_streaming)
+
+    await controller._run_background_scan()
+
+    controller.set_audio_analysis.assert_awaited_once()
+    background_streaming.assert_awaited_once_with(streamdetails, [sonic])
+
+
+@pytest.mark.asyncio
+async def test_run_background_scan_can_disable_local_sidecar_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The server can be configured to import sidecars without calculating missing data."""
+    controller = _make_controller()
+    provider = _make_aa_provider("sonic", available=True)
+    provider.domain = "sonic_analysis"
+    provider.analysis_version = 1
+    monkeypatch.setattr(controller.__class__, "providers", property(lambda _self: [provider]))
+    monkeypatch.setattr(
+        controller,
+        "_find_candidates_missing_analysis",
+        AsyncMock(
+            return_value=[
+                {
+                    "item_id": "track-1",
+                    "provider_instance": "filesystem_local",
+                    "missing_domains": ["sonic_analysis"],
+                }
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        audio_analysis_mod, "read_audio_analysis_sidecar", lambda _path, _versions: {}
+    )
+    streamdetails = _make_streamdetails(path="track.flac", item_id="track-1")
+    streamdetails.stream_type = StreamType.LOCAL_FILE
+    streamdetails.media_type = MediaType.TRACK
+    music_provider = MagicMock(available=True)
+    music_provider.get_stream_details = AsyncMock(return_value=streamdetails)
+    controller.mass.get_provider = MagicMock(return_value=music_provider)  # type: ignore[method-assign]
+    controller.mass.config.get_raw_core_config_value.return_value = False
+    background_streaming = AsyncMock()
+    monkeypatch.setattr(controller, "_run_background_streaming_for_track", background_streaming)
+
+    await controller._run_background_scan()
+
+    background_streaming.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_find_candidates_handles_sqlite_row_without_get(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

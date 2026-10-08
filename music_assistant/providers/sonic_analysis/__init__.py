@@ -26,6 +26,7 @@ from music_assistant.models.audio_analysis_provider import (
     AnalysisSessionData,
     AudioAnalysisProvider,
 )
+from music_assistant.providers.audio_analysis_versions import SONIC_ANALYSIS_VERSION
 
 from .clap_prompts import (
     PRECOMPUTED_EMBEDDINGS_PATH,
@@ -298,7 +299,7 @@ def _decode_resample_extract(
 class SonicAnalysisProvider(AudioAnalysisProvider):
     """Audio analysis provider running librosa scalars + CLAP zero-shot per track."""
 
-    analysis_version: int = 1
+    analysis_version: int = SONIC_ANALYSIS_VERSION
     max_analysis_duration = ACCUMULATING_ANALYSIS_MAX_DURATION_SECONDS
     has_unloadable_models = True
 

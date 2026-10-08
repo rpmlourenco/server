@@ -9,7 +9,7 @@ container is built, and how future upstream upgrades must be handled.
 Current personal version:
 
 ```text
-2.10.5.dev2
+2.10.5.dev3
 ```
 
 Upstream base:
@@ -23,10 +23,12 @@ The `2.10.5.dev2` code was rebuilt from the official 2.10.5 commit as a clean ba
 and all personal functionality was reapplied on top. The upstream commit is the
 direct parent of the personal integration commit.
 
+`2.10.5.dev3` builds on that branch and adds precomputed FLAC analysis sidecars.
+
 The personal ARM64 image is published as:
 
 ```text
-ghcr.io/rpmlourenco/server:2.10.5.dev2
+ghcr.io/rpmlourenco/server:2.10.5.dev3
 ```
 
 ## Design principles
@@ -357,6 +359,50 @@ music_assistant/controllers/streams/audio_analysis.py
 tests/controllers/streams/test_audio_analysis.py
 ```
 
+## Precomputed FLAC audio analysis
+
+The Windows FlacConverter command `analyze-audio` runs the server's analysis providers
+on the PC, using its local Python environment. One persistent process loads models
+once and decodes each FLAC once for the requested providers. The providers share their
+algorithm versions through `providers/audio_analysis_versions.py`.
+
+Results are stored in same-basename `.lda` gzip JSON sidecars, without changing FLAC
+tags or audio. Each provider has its own algorithm version. FLAC STREAMINFO's decoded
+PCM MD5 identifies the source independently of tag changes. Updates preserve other
+provider results and publish through an atomic replacement.
+
+The filesystem background scan imports valid sidecar results into SQLite before
+starting local analysis. Only missing providers fall back to calculation on the server.
+The Streams setting `precomputed_analysis_fallback`, enabled by default, can disable
+that calculation for an import-only background scan. Playback remains SQLite-only.
+
+Files and regression tests:
+
+```text
+music_assistant/helpers/audio_analysis_sidecar.py
+music_assistant/helpers/offline_audio_analysis.py
+music_assistant/providers/audio_analysis_versions.py
+music_assistant/controllers/streams/audio_analysis.py
+music_assistant/controllers/streams/controller.py
+tests/helpers/test_audio_analysis_sidecar.py
+tests/helpers/test_offline_audio_analysis.py
+tests/controllers/streams/test_audio_analysis.py
+```
+
+Each FLAC is an independent work item. Future multi-PC scheduling must assign a file
+to only one worker at a time to prevent concurrent sidecar updates. Distributed
+coordination is not implemented in this phase.
+
+On Windows with Python 3.14, `kaldi-native-fbank==1.22.3` may need compilation using
+Visual Studio's C++ tools and CMake. Use a short uv cache path when compiling it;
+long checkout/cache paths can exceed MSBuild's file-tracking path limit. Keep provider
+requirements at the versions in their manifests.
+
+The 2026-10-08 Samba pilot on the four-track `4 Non Blondes / What's Up` EP completed
+all three providers in about 60 seconds, reused all results on a second run, and
+preserved the SHA-256 of every FLAC. This validates PC computation and Samba sidecar
+publication; import into the deployed Home Assistant instance still needs validation.
+
 ## 10. Personal image packaging
 
 ### Purpose
@@ -425,13 +471,22 @@ ghcr.io/rpmlourenco/server:<personal-version>
 Relative to official 2.10.5, the current fork modifies these runtime files:
 
 ```text
+music_assistant/constants.py
 music_assistant/controllers/music/controller.py
 music_assistant/controllers/music/media/tracks.py
 music_assistant/controllers/streams/audio_analysis.py
+music_assistant/controllers/streams/controller.py
+music_assistant/controllers/streams/strings.json
+music_assistant/helpers/audio_analysis_sidecar.py
+music_assistant/helpers/offline_audio_analysis.py
 music_assistant/helpers/tags.py
+music_assistant/providers/audio_analysis_versions.py
 music_assistant/providers/filesystem_local/__init__.py
+music_assistant/providers/loudness_analysis/provider.py
 music_assistant/providers/lastfm_recommendations/__init__.py
 music_assistant/providers/lastfm_recommendations/parsers.py
+music_assistant/providers/smart_fades/provider.py
+music_assistant/providers/sonic_analysis/__init__.py
 music_assistant/providers/sonos/const.py
 music_assistant/providers/sonos/player.py
 music_assistant/providers/sonos/provider.py
@@ -443,6 +498,7 @@ Packaging and documentation files are:
 
 ```text
 Dockerfile.personal
+Dockerfile.personal.dockerignore
 .github/workflows/publish-personal-image.yml
 README.md
 docs/PERSONAL_FORK.md

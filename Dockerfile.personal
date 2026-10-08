@@ -11,6 +11,15 @@ COPY music_assistant/controllers/music/controller.py /tmp/ma-sonos-patch/control
 COPY music_assistant/controllers/music/media/tracks.py /tmp/ma-sonos-patch/controllers/music/media/tracks.py
 COPY music_assistant/helpers/tags.py /tmp/ma-sonos-patch/helpers/tags.py
 COPY music_assistant/controllers/streams/audio_analysis.py /tmp/ma-sonos-patch/controllers/streams/audio_analysis.py
+COPY music_assistant/constants.py /tmp/ma-sonos-patch/constants.py
+COPY music_assistant/controllers/streams/controller.py /tmp/ma-sonos-patch/controllers/streams/controller.py
+COPY music_assistant/controllers/streams/strings.json /tmp/ma-sonos-patch/controllers/streams/strings.json
+COPY music_assistant/helpers/audio_analysis_sidecar.py /tmp/ma-sonos-patch/helpers/audio_analysis_sidecar.py
+COPY music_assistant/helpers/offline_audio_analysis.py /tmp/ma-sonos-patch/helpers/offline_audio_analysis.py
+COPY music_assistant/providers/audio_analysis_versions.py /tmp/ma-sonos-patch/providers/audio_analysis_versions.py
+COPY music_assistant/providers/loudness_analysis/provider.py /tmp/ma-sonos-patch/providers/loudness_analysis/provider.py
+COPY music_assistant/providers/smart_fades/provider.py /tmp/ma-sonos-patch/providers/smart_fades/provider.py
+COPY music_assistant/providers/sonic_analysis/__init__.py /tmp/ma-sonos-patch/providers/sonic_analysis/__init__.py
 COPY music_assistant/providers/filesystem_local/__init__.py /tmp/ma-sonos-patch/providers/filesystem_local/__init__.py
 COPY music_assistant/providers/sonos/const.py /tmp/ma-sonos-patch/providers/sonos/const.py
 COPY music_assistant/providers/sonos/player.py /tmp/ma-sonos-patch/providers/sonos/player.py
@@ -37,10 +46,21 @@ RUN set -eu; \
     install -m 644 /tmp/ma-sonos-patch/providers/lastfm_recommendations/parsers.py "${SITE_PACKAGES}/music_assistant/providers/lastfm_recommendations/parsers.py"; \
     install -m 644 /tmp/ma-sonos-patch/translations/en.json "${SITE_PACKAGES}/music_assistant/translations/en.json"; \
     install -m 644 /tmp/ma-sonos-patch/controllers/streams/audio_analysis.py "${SITE_PACKAGES}/music_assistant/controllers/streams/audio_analysis.py"; \
+    install -m 644 /tmp/ma-sonos-patch/constants.py "${SITE_PACKAGES}/music_assistant/constants.py"; \
+    install -m 644 /tmp/ma-sonos-patch/controllers/streams/controller.py "${SITE_PACKAGES}/music_assistant/controllers/streams/controller.py"; \
+    install -m 644 /tmp/ma-sonos-patch/controllers/streams/strings.json "${SITE_PACKAGES}/music_assistant/controllers/streams/strings.json"; \
+    install -m 644 /tmp/ma-sonos-patch/helpers/audio_analysis_sidecar.py "${SITE_PACKAGES}/music_assistant/helpers/audio_analysis_sidecar.py"; \
+    install -m 644 /tmp/ma-sonos-patch/helpers/offline_audio_analysis.py "${SITE_PACKAGES}/music_assistant/helpers/offline_audio_analysis.py"; \
+    install -m 644 /tmp/ma-sonos-patch/providers/audio_analysis_versions.py "${SITE_PACKAGES}/music_assistant/providers/audio_analysis_versions.py"; \
+    install -m 644 /tmp/ma-sonos-patch/providers/loudness_analysis/provider.py "${SITE_PACKAGES}/music_assistant/providers/loudness_analysis/provider.py"; \
+    install -m 644 /tmp/ma-sonos-patch/providers/smart_fades/provider.py "${SITE_PACKAGES}/music_assistant/providers/smart_fades/provider.py"; \
+    install -m 644 /tmp/ma-sonos-patch/providers/sonic_analysis/__init__.py "${SITE_PACKAGES}/music_assistant/providers/sonic_analysis/__init__.py"; \
     grep -q "Ignoring mismatched album mapping" "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py"; \
     grep -q "_same_local_release" "${SITE_PACKAGES}/music_assistant/controllers/music/media/tracks.py"; \
     grep -q "matches_requested_album" "${SITE_PACKAGES}/music_assistant/providers/filesystem_local/__init__.py"; \
     python -c 'from music_assistant.controllers.music.media.tracks import TracksController; from music_assistant.helpers.tags import AudioTags; assert hasattr(TracksController, "_same_local_release"); assert hasattr(AudioTags, "musicbrainz_releasetrackid")'; \
+    python -c 'from music_assistant.controllers.streams.audio_analysis import AudioAnalysisController; from music_assistant.helpers.audio_analysis_sidecar import SIDECAR_SCHEMA_VERSION; from music_assistant.providers.audio_analysis_versions import ANALYSIS_VERSIONS; assert hasattr(AudioAnalysisController, "_import_precomputed_analysis"); assert SIDECAR_SCHEMA_VERSION == 1; assert set(ANALYSIS_VERSIONS) == {"loudness_analysis", "smart_fades", "sonic_analysis"}'; \
+    python -m compileall -q /tmp/ma-sonos-patch; \
     rm -rf /tmp/ma-sonos-patch; \
     python -m compileall -q "${SITE_PACKAGES}/music_assistant/providers/filesystem_local" "${SITE_PACKAGES}/music_assistant/providers/sonos" "${SITE_PACKAGES}/music_assistant/providers/lastfm_recommendations" "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py" "${SITE_PACKAGES}/music_assistant/controllers/music/media/tracks.py" "${SITE_PACKAGES}/music_assistant/helpers/tags.py" "${SITE_PACKAGES}/music_assistant/controllers/streams/audio_analysis.py"
 

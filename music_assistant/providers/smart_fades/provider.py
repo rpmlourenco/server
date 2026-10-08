@@ -24,6 +24,7 @@ from music_assistant.models.audio_analysis_provider import (
     ACCUMULATING_ANALYSIS_MAX_DURATION_SECONDS,
     AudioAnalysisProvider,
 )
+from music_assistant.providers.audio_analysis_versions import SMART_FADES_ANALYSIS_VERSION
 
 from .dbn_postprocessor import DBNDownBeatTracker
 from .feature_extractor import AdvancedBeatFeatureExtractor
@@ -117,7 +118,7 @@ class SmartFadesProvider(AudioAnalysisProvider):
 
     max_analysis_duration = ACCUMULATING_ANALYSIS_MAX_DURATION_SECONDS
     # v3: FireRed AED vocal activity
-    analysis_version = 3
+    analysis_version = SMART_FADES_ANALYSIS_VERSION
     has_unloadable_models = True
 
     def __init__(
