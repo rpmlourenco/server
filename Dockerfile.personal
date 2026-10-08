@@ -19,6 +19,10 @@ COPY music_assistant/helpers/offline_audio_analysis.py /tmp/ma-sonos-patch/helpe
 COPY music_assistant/providers/audio_analysis_versions.py /tmp/ma-sonos-patch/providers/audio_analysis_versions.py
 COPY music_assistant/providers/loudness_analysis/provider.py /tmp/ma-sonos-patch/providers/loudness_analysis/provider.py
 COPY music_assistant/providers/smart_fades/provider.py /tmp/ma-sonos-patch/providers/smart_fades/provider.py
+COPY music_assistant/providers/smart_fades/helpers.py /tmp/ma-sonos-patch/providers/smart_fades/helpers.py
+COPY music_assistant/models/__init__.py /tmp/ma-sonos-patch/models/__init__.py
+COPY music_assistant/models/audio_analysis.py /tmp/ma-sonos-patch/models/audio_analysis.py
+COPY music_assistant/controllers/streams/smart_fades/models.py /tmp/ma-sonos-patch/controllers/streams/smart_fades/models.py
 COPY music_assistant/providers/sonic_analysis/__init__.py /tmp/ma-sonos-patch/providers/sonic_analysis/__init__.py
 COPY music_assistant/providers/filesystem_local/__init__.py /tmp/ma-sonos-patch/providers/filesystem_local/__init__.py
 COPY music_assistant/providers/sonos/const.py /tmp/ma-sonos-patch/providers/sonos/const.py
@@ -54,6 +58,10 @@ RUN set -eu; \
     install -m 644 /tmp/ma-sonos-patch/providers/audio_analysis_versions.py "${SITE_PACKAGES}/music_assistant/providers/audio_analysis_versions.py"; \
     install -m 644 /tmp/ma-sonos-patch/providers/loudness_analysis/provider.py "${SITE_PACKAGES}/music_assistant/providers/loudness_analysis/provider.py"; \
     install -m 644 /tmp/ma-sonos-patch/providers/smart_fades/provider.py "${SITE_PACKAGES}/music_assistant/providers/smart_fades/provider.py"; \
+    install -m 644 /tmp/ma-sonos-patch/providers/smart_fades/helpers.py "${SITE_PACKAGES}/music_assistant/providers/smart_fades/helpers.py"; \
+    install -m 644 /tmp/ma-sonos-patch/models/__init__.py "${SITE_PACKAGES}/music_assistant/models/__init__.py"; \
+    install -m 644 /tmp/ma-sonos-patch/models/audio_analysis.py "${SITE_PACKAGES}/music_assistant/models/audio_analysis.py"; \
+    install -m 644 /tmp/ma-sonos-patch/controllers/streams/smart_fades/models.py "${SITE_PACKAGES}/music_assistant/controllers/streams/smart_fades/models.py"; \
     install -m 644 /tmp/ma-sonos-patch/providers/sonic_analysis/__init__.py "${SITE_PACKAGES}/music_assistant/providers/sonic_analysis/__init__.py"; \
     grep -q "Ignoring mismatched album mapping" "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py"; \
     grep -q "_same_local_release" "${SITE_PACKAGES}/music_assistant/controllers/music/media/tracks.py"; \

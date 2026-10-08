@@ -9,7 +9,7 @@ container is built, and how future upstream upgrades must be handled.
 Current personal version:
 
 ```text
-2.10.5.dev3
+2.10.5.dev4
 ```
 
 Upstream base:
@@ -25,10 +25,20 @@ direct parent of the personal integration commit.
 
 `2.10.5.dev3` builds on that branch and adds precomputed FLAC analysis sidecars.
 
+`2.10.5.dev4` moves ongoing maintenance to `main` and includes all shared analysis
+modules in the HA image. Previous version branches are preserved as history.
+Published versions use Git tags and matching container/add-on versions; they do not
+require new branches. Temporary development branches are merged into `main` after
+validation. GitHub's default branch and local tracking/comparison base must be `main`.
+Pushes to `main` publish a validation-tested `edge` image. For a numbered release,
+dispatch `publish-personal-image.yml` on the exact release commit/tag with the explicit
+version (for example `2.10.5.dev4`), verify ARM64 publication, and only then update the
+add-on catalog. Never overwrite a numbered release tag to deliver new code.
+
 The personal ARM64 image is published as:
 
 ```text
-ghcr.io/rpmlourenco/server:2.10.5.dev3
+ghcr.io/rpmlourenco/server:2.10.5.dev4
 ```
 
 ## Design principles
@@ -562,6 +572,10 @@ music_assistant/helpers/audio_analysis_sidecar.py
 music_assistant/helpers/offline_audio_analysis.py
 music_assistant/helpers/tags.py
 music_assistant/providers/audio_analysis_versions.py
+music_assistant/models/__init__.py
+music_assistant/models/audio_analysis.py
+music_assistant/controllers/streams/smart_fades/models.py
+music_assistant/providers/smart_fades/helpers.py
 music_assistant/providers/filesystem_local/__init__.py
 music_assistant/providers/loudness_analysis/provider.py
 music_assistant/providers/lastfm_recommendations/__init__.py

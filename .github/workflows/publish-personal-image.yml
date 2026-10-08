@@ -3,8 +3,7 @@ name: Publish personal Music Assistant image
 on:
   push:
     branches:
-      - sonos-https-artwork
-      - "2.10.*.dev*"
+      - main
   workflow_dispatch:
     inputs:
       version:
@@ -26,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/server
-      IMAGE_TAG: ${{ inputs.version || (github.ref_name != 'sonos-https-artwork' && github.ref_name) || 'edge' }}
+      IMAGE_TAG: ${{ inputs.version || 'edge' }}
       UPSTREAM_VERSION: "2.10.5"
     steps:
       - name: Check out source
@@ -45,9 +44,12 @@ jobs:
             apt-get update -qq
             apt-get install -y --no-install-recommends git util-linux
             uv pip install --python "$(command -v python)" ruff==0.15.22 pre-commit pre-commit-hooks mypy==2.3.0 codespell pytest==9.1.1 pytest-asyncio==1.4.0 pytest-aiohttp==1.1.1 pytest-timeout==2.4.0 pytest-xdist==3.8.0 syrupy==6.1.1
+            cd /tmp
+            python -c "import sys; from music_assistant.helpers.offline_audio_analysis import OfflineAudioAnalysisRunner; [OfflineAudioAnalysisRunner._provider_class(domain) for domain in (\"loudness_analysis\", \"smart_fades\", \"sonic_analysis\")]; assert not any(name.startswith(\"music_assistant.controllers\") for name in sys.modules)"
+            cd /src
             python /src/tests/controllers/music/test_local_track_editions.py -v
             runuser -u nobody -- env PYTHONPATH=/src python -m pytest tests/controllers/music/test_local_track_editions.py tests/controllers/music/test_external_id_lookup.py tests/helpers/test_compare.py tests/helpers/test_tags.py tests/providers/filesystem/test_artist_path.py tests/providers/filesystem/test_nfo_resolution.py -q -p no:cacheprovider
-            runuser -u nobody -- env PYTHONPATH=/src python -m pytest tests/helpers/test_audio_analysis_sidecar.py tests/helpers/test_offline_audio_analysis.py tests/controllers/streams/test_audio_analysis.py -q -p no:cacheprovider
+            runuser -u nobody -- env PYTHONPATH=/src python -m pytest tests/helpers/test_audio_analysis_sidecar.py tests/helpers/test_offline_audio_analysis.py tests/helpers/test_offline_imports.py tests/controllers/streams/test_audio_analysis.py tests/providers/smart_fades tests/controllers/streams/smart_fades/test_models.py -q -p no:cacheprovider
             export UV_PROJECT_ENVIRONMENT="$(python -c "import sys; print(sys.prefix)")"
             export UV_NO_SYNC=1
             git config --global --add safe.directory /src

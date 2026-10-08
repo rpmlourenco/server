@@ -1,5 +1,14 @@
 # Personal Music Assistant changelog
 
+## 2.10.5.dev4
+
+- Maintain the personal fork on `main`; identify published versions with Git tags
+  and explicit container/add-on versions instead of creating a branch per release.
+- Package the shared analysis models, lazy provider exports and Smart Fades helpers
+  in the HA image, including the offline CUDA changes from dev3. HA defaults remain CPU.
+- Validate standalone imports against the installed image, and run Smart Fades and
+  offline-import regression tests before publishing.
+
 ## 2.10.5.dev3
 
 - Keep provider exports lazy and share Smart Fades band definitions in the analysis
