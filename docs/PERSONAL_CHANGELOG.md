@@ -2,6 +2,16 @@
 
 ## Main maintenance after 2.10.5.dev4
 
+- Merge Similar Tracks from all available supporting providers, including Last.fm
+  and Sonic Similarity, instead of returning the first nonempty provider response.
+  Fetch concurrently and interleave rankings within the requested total limit;
+  remove seed/duplicate tracks using existing strict track identity comparisons.
+  Keep healthy providers' results when another provider fails, and retain the
+  existing optional lookup fallback only when the merged list is empty.
+- Apply the same combined suggestions to radio/dynamic continuation and autoplay
+  in Similar/Auto modes through their shared track-similarity API; retain the
+  separate Library/Playlist autoplay modes and recent/queued-track filters.
+
 - Fix the 20 existing test typing errors with explicit optional-value assertions,
   correctly typed mocks, real Mutagen tag containers and UniqueList artist fixtures.
 - Restore the global mypy pre-commit gate for future image publications. These

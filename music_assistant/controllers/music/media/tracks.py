@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from datetime import UTC, datetime
+from itertools import zip_longest
 from typing import TYPE_CHECKING, Any, Never, cast
 
 from aiohttp import ClientError
@@ -450,16 +452,18 @@ class TracksController(MediaControllerBase[Track]):
         preferred_provider_instances: list[str] | None = None,
     ) -> list[Track]:
         """
-        Get a list of similar tracks for the given track.
+        Merge similar tracks from available providers, preserving each provider's ranking.
 
         :param item_id: The item ID of the track.
         :param provider_instance_id_or_domain: The provider instance ID or domain.
         :param limit: Maximum number of similar tracks to return.
         :param allow_lookup: Allow lookup on other providers if not found.
         :param preferred_provider_instances: List of preferred provider instance IDs to use.
-            When provided, these providers will be tried first before falling back to others.
+            When provided, these providers lead the interleaved results.
         :raises MusicAssistantError: When no provider can complete the request.
         """
+        if limit <= 0:
+            return []
         ref_item = await self.get(item_id, provider_instance_id_or_domain)
 
         # Sort provider mappings to prefer user's provider instances
@@ -481,35 +485,39 @@ class TracksController(MediaControllerBase[Track]):
         )
         provider_responded = False
 
-        # Try preferred providers first, then fall back to others
+        requests: list[tuple[MusicProvider | MetadataProvider | PluginProvider, str | None]] = []
+        requested_instances: set[str] = set()
         for prov_mapping in sorted_mappings:
             prov = self.mass.get_provider(prov_mapping.provider_instance)
             if (
                 not isinstance(prov, MusicProvider)
+                or not prov.available
                 or ProviderFeature.SIMILAR_TRACKS not in prov.supported_features
+                or prov.instance_id in requested_instances
             ):
                 continue
-            result, error = await self._get_similar_tracks_from_provider(
-                prov, ref_item, limit, provider_track_id=prov_mapping.item_id
-            )
-            if error is not None:
-                last_provider_error = error
-                continue
-            if result is None:
-                continue
-            provider_responded = True
-            if result:
-                return result
+            requested_instances.add(prov.instance_id)
+            requests.append((prov, prov_mapping.item_id))
 
-        # Fallback: consult metadata/plugin providers that claim SIMILAR_TRACKS
         for prov in self.mass.get_providers_supporting_feature(
             ProviderFeature.SIMILAR_TRACKS,
             priority=(ProviderType.METADATA, ProviderType.PLUGIN),
         ):
-            cross_prov = cast("MetadataProvider | PluginProvider", prov)
-            result, error = await self._get_similar_tracks_from_provider(
-                cross_prov, ref_item, limit
-            )
+            if prov.instance_id not in requested_instances:
+                requested_instances.add(prov.instance_id)
+                requests.append((cast("MetadataProvider | PluginProvider", prov), None))
+
+        # Fetch independently: a short metadata response must not hide local audio matches.
+        responses = await asyncio.gather(
+            *[
+                self._get_similar_tracks_from_provider(
+                    provider, ref_item, limit, provider_track_id=provider_track_id
+                )
+                for provider, provider_track_id in requests
+            ]
+        )
+        result_lists: list[list[Track]] = []
+        for result, error in responses:
             if error is not None:
                 last_provider_error = error
                 continue
@@ -517,7 +525,11 @@ class TracksController(MediaControllerBase[Track]):
                 continue
             provider_responded = True
             if result:
-                return result
+                result_lists.append(result)
+
+        merged = self._merge_similar_track_results(ref_item, result_lists, limit)
+        if merged:
+            return merged
 
         if not allow_lookup:
             if not provider_responded and last_provider_error is not None:
@@ -1065,6 +1077,29 @@ class TracksController(MediaControllerBase[Track]):
                 # always prefer album image over track image
                 item.metadata.images = UniqueList([album_thumb])
         return item
+
+    @staticmethod
+    def _merge_similar_track_results(
+        ref_item: Track, result_lists: list[list[Track]], limit: int
+    ) -> list[Track]:
+        """
+        Interleave ranked results, excluding duplicate tracks and the seed.
+
+        :param ref_item: Seed track that must not be recommended to itself.
+        :param result_lists: Provider lists in priority order.
+        :param limit: Maximum number of unique tracks to return.
+        """
+        merged: list[Track] = []
+        for row in zip_longest(*result_lists):
+            for track in row:
+                if track is None or compare_track(ref_item, track):
+                    continue
+                if any(compare_track(previous, track) for previous in merged):
+                    continue
+                merged.append(track)
+                if len(merged) >= limit:
+                    return merged
+        return merged
 
     async def _get_similar_tracks_from_provider(
         self,
