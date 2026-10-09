@@ -1,6 +1,6 @@
 # Personal Music Assistant changelog
 
-## Main maintenance after 2.10.5.dev4
+## 2.10.5.dev5
 
 - Merge Similar Tracks from all available supporting providers, including Last.fm
   and Sonic Similarity, instead of returning the first nonempty provider response.
@@ -11,7 +11,6 @@
 - Apply the same combined suggestions to radio/dynamic continuation and autoplay
   in Similar/Auto modes through their shared track-similarity API; retain the
   separate Library/Playlist autoplay modes and recent/queued-track filters.
-
 - Fix the 20 existing test typing errors with explicit optional-value assertions,
   correctly typed mocks, real Mutagen tag containers and UniqueList artist fixtures.
 - Restore the global mypy pre-commit gate for future image publications. These

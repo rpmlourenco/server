@@ -9,7 +9,7 @@ container is built, and how future upstream upgrades must be handled.
 Current personal version:
 
 ```text
-2.10.5.dev4
+2.10.5.dev5
 ```
 
 Upstream base:
@@ -27,18 +27,22 @@ direct parent of the personal integration commit.
 
 `2.10.5.dev4` moves ongoing maintenance to `main` and includes all shared analysis
 modules in the HA image. Previous version branches are preserved as history.
+`2.10.5.dev5` combines Similar Tracks from active providers (including Last.fm and
+Sonic Similarity), interleaving and deduplicating their results. The same merge
+feeds radio continuation and Auto/Similar autoplay; Library/Playlist modes remain
+unchanged. It also includes the post-dev4 typing corrections.
 Published versions use Git tags and matching container/add-on versions; they do not
 require new branches. Temporary development branches are merged into `main` after
 validation. GitHub's default branch and local tracking/comparison base must be `main`.
 Pushes to `main` publish a validation-tested `edge` image. For a numbered release,
 dispatch `publish-personal-image.yml` on the exact release commit/tag with the explicit
-version (for example `2.10.5.dev4`), verify ARM64 publication, and only then update the
+version (for example `2.10.5.dev5`), verify ARM64 publication, and only then update the
 add-on catalog. Never overwrite a numbered release tag to deliver new code.
 
 The personal ARM64 image is published as:
 
 ```text
-ghcr.io/rpmlourenco/server:2.10.5.dev4
+ghcr.io/rpmlourenco/server:2.10.5.dev5
 ```
 
 ## Design principles
