@@ -8,6 +8,7 @@ ARG PERSONAL_VERSION
 # Keep the official Music Assistant image, including its bundled app credentials,
 # and replace the personal fixes maintained by this branch.
 COPY music_assistant/controllers/music/controller.py /tmp/ma-sonos-patch/controllers/music/controller.py
+COPY music_assistant/controllers/metadata/controller.py /tmp/ma-sonos-patch/controllers/metadata/controller.py
 COPY music_assistant/controllers/music/media/tracks.py /tmp/ma-sonos-patch/controllers/music/media/tracks.py
 COPY music_assistant/helpers/tags.py /tmp/ma-sonos-patch/helpers/tags.py
 COPY music_assistant/controllers/streams/audio_analysis.py /tmp/ma-sonos-patch/controllers/streams/audio_analysis.py
@@ -39,6 +40,7 @@ RUN set -eu; \
     test -s "${SITE_PACKAGES}/music_assistant/helpers/app_secrets.json"; \
     python -c 'from music_assistant.helpers.app_vars import app_var; assert app_var("theaudiodb_api_key"); assert app_var("fanarttv_api_key"); assert app_var("lastfm_api_key")'; \
     install -m 644 /tmp/ma-sonos-patch/controllers/music/controller.py "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py"; \
+    install -m 644 /tmp/ma-sonos-patch/controllers/metadata/controller.py "${SITE_PACKAGES}/music_assistant/controllers/metadata/controller.py"; \
     install -m 644 /tmp/ma-sonos-patch/controllers/music/media/tracks.py "${SITE_PACKAGES}/music_assistant/controllers/music/media/tracks.py"; \
     install -m 644 /tmp/ma-sonos-patch/helpers/tags.py "${SITE_PACKAGES}/music_assistant/helpers/tags.py"; \
     install -m 644 /tmp/ma-sonos-patch/providers/filesystem_local/__init__.py "${SITE_PACKAGES}/music_assistant/providers/filesystem_local/__init__.py"; \

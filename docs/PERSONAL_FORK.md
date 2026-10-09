@@ -9,7 +9,7 @@ container is built, and how future upstream upgrades must be handled.
 Current personal version:
 
 ```text
-2.10.5.dev5
+2.10.5.dev6
 ```
 
 Upstream base:
@@ -31,18 +31,20 @@ modules in the HA image. Previous version branches are preserved as history.
 Sonic Similarity), interleaving and deduplicating their results. The same merge
 feeds radio continuation and Auto/Similar autoplay; Library/Playlist modes remain
 unchanged. It also includes the post-dev4 typing corrections.
+`2.10.5.dev6` reduces global metadata update pacing to one item every three seconds.
+Provider-specific throttles remain unchanged, including LRCLIB's public endpoint.
 Published versions use Git tags and matching container/add-on versions; they do not
 require new branches. Temporary development branches are merged into `main` after
 validation. GitHub's default branch and local tracking/comparison base must be `main`.
 Pushes to `main` publish a validation-tested `edge` image. For a numbered release,
 dispatch `publish-personal-image.yml` on the exact release commit/tag with the explicit
-version (for example `2.10.5.dev5`), verify ARM64 publication, and only then update the
+version (for example `2.10.5.dev6`), verify ARM64 publication, and only then update the
 add-on catalog. Never overwrite a numbered release tag to deliver new code.
 
 The personal ARM64 image is published as:
 
 ```text
-ghcr.io/rpmlourenco/server:2.10.5.dev5
+ghcr.io/rpmlourenco/server:2.10.5.dev6
 ```
 
 ## Design principles
@@ -567,6 +569,7 @@ Relative to official 2.10.5, the current fork modifies these runtime files:
 
 ```text
 music_assistant/constants.py
+music_assistant/controllers/metadata/controller.py
 music_assistant/controllers/music/controller.py
 music_assistant/controllers/music/media/tracks.py
 music_assistant/controllers/streams/audio_analysis.py

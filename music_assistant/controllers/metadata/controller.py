@@ -109,7 +109,7 @@ class MetaDataController(
             "Music Assistant's core controller which handles all metadata for music."
         )
         self.manifest.icon = "book-information-variant"
-        self._throttler = Throttler(1, 30)
+        self._throttler = Throttler(1, 3)
         # image-id bookkeeping, all bounded by _IMAGE_ID_LRU_MAX and sharing the
         # same key/id string objects so the combined footprint stays small:
         # - _image_id_forward: (provider, path) -> image_id memo so serializing a

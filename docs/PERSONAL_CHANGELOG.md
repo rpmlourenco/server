@@ -1,5 +1,12 @@
 # Personal Music Assistant changelog
 
+## 2.10.5.dev6
+
+- Reduce the global metadata update interval from 30 to 3 seconds, while keeping
+  each provider's independent rate limit unchanged, including LRCLIB.
+- Include the metadata controller in the personal image overlay and validate its
+  installed throttle and metadata regression tests before publication.
+
 ## 2.10.5.dev5
 
 - Merge Similar Tracks from all available supporting providers, including Last.fm
