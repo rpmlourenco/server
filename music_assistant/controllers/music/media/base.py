@@ -743,8 +743,10 @@ class MediaControllerBase[ItemCls: "MediaItemType"](metaclass=ABCMeta):
                 provider_item_id=mapping.item_id,
             ):
                 return item
-        # check by domain too
+        # check by domain too, except for mappings that only exist on their own instance
         for mapping in provider_mappings:
+            if mapping.is_unique:
+                continue
             for item in await self.get_library_items_by_prov_id(
                 provider_domain=mapping.provider_domain,
                 provider_item_id=mapping.item_id,
@@ -795,6 +797,8 @@ class MediaControllerBase[ItemCls: "MediaItemType"](metaclass=ABCMeta):
         # (same resolution order as get_library_item_by_prov_mappings)
         for prov_column in ("provider_instance", "provider_domain"):
             for mapping in provider_mappings:
+                if prov_column == "provider_domain" and mapping.is_unique:
+                    continue
                 for db_row in await self.mass.music.database.get_rows_from_query(
                     base_sql.format(prov_column=prov_column),
                     {
@@ -2143,33 +2147,40 @@ class MediaControllerBase[ItemCls: "MediaItemType"](metaclass=ABCMeta):
                 "is no longer available on any provider"
             )
             raise MediaNotFoundError(msg)
+        # provider_mappings is a set with no stable iteration order, so rank the mappings
+        # by availability and priority (in_library and non-streaming sources first) and
+        # break ties on the instance and item id to pick the same mapping every time
+        ordered_mappings = sorted(
+            library_item.provider_mappings,
+            key=lambda x: (not x.available, -x.priority, x.provider_instance, x.item_id),
+        )
         user = get_current_user()
         user_provider_filter = user.provider_filter if user and user.provider_filter else None
         if not user_provider_filter:
-            mapping = next(iter(library_item.provider_mappings))
+            mapping = ordered_mappings[0]
             return (mapping.provider_instance, mapping.item_id)
 
         # First prefer music provider mappings that are explicitly allowed for this user.
         # prefer user provider filter if available
-        for mapping in library_item.provider_mappings:
+        for mapping in ordered_mappings:
             provider = self.mass.get_provider(mapping.provider_instance)
             if provider and provider.type == ProviderType.MUSIC:
                 if mapping.provider_instance in user_provider_filter:
                     return (mapping.provider_instance, mapping.item_id)
 
         # If no allowed music mapping exists, fall back to plugin mappings.
-        for mapping in library_item.provider_mappings:
+        for mapping in ordered_mappings:
             provider = self.mass.get_provider(mapping.provider_instance)
             if provider and provider.type == ProviderType.PLUGIN:
                 return (mapping.provider_instance, mapping.item_id)
 
         # As a final fallback, preserve previous behavior.
-        for mapping in library_item.provider_mappings:
+        for mapping in ordered_mappings:
             if mapping.provider_instance in user_provider_filter:
                 return (mapping.provider_instance, mapping.item_id)
 
         # fallback to first mapping
-        mapping = next(iter(library_item.provider_mappings))
+        mapping = ordered_mappings[0]
         return (mapping.provider_instance, mapping.item_id)
 
     async def _remove_provider_images(self, db_id: int, provider_instance_id: str) -> bool:

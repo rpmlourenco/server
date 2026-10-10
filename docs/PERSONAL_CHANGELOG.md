@@ -1,5 +1,15 @@
 # Personal Music Assistant changelog
 
+## 2.10.6.dev1
+
+- Integrate the official Music Assistant 2.10.6 stable release and retain its
+  playback, provider, security and task-queue fixes.
+- Reapply and validate the personal local-edition matching, precomputed audio
+  analysis, Similar Tracks, Sonos artwork and metadata pacing behaviour.
+- Update the personal container base to `ghcr.io/music-assistant/server:2.10.6`.
+  Existing settings and analysis sidecars remain compatible; no library
+  reanalysis is required.
+
 ## 2.10.5.dev6
 
 - Reduce the global metadata update interval from 30 to 3 seconds, while keeping

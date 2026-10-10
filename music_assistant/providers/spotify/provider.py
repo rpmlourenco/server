@@ -56,7 +56,11 @@ from music_assistant.constants import CONF_ENTRY_UNOFFICIAL_PROVIDER
 from music_assistant.controllers.cache import use_cache
 from music_assistant.helpers.app_vars import app_var
 from music_assistant.helpers.json import SerializableType, json_loads
-from music_assistant.helpers.throttle_retry import ThrottlerManager, throttle_with_retries
+from music_assistant.helpers.throttle_retry import (
+    ThrottlerManager,
+    parse_retry_after,
+    throttle_with_retries,
+)
 from music_assistant.helpers.util import lock
 from music_assistant.models.music_provider import MusicProvider, ProviderStreamLimitError
 from music_assistant.providers.spotify_connect.base import (
@@ -97,6 +101,10 @@ from .parsers import (
 )
 
 _PLAYLIST_PAGINATION_STATE_LIMIT = 32
+
+# the throttler of an instance outlives the provider object, so a (re)load of the
+# provider does not lift a rate limit the service imposed
+_THROTTLERS: dict[str, ThrottlerManager] = {}
 
 
 class NotModifiedError(Exception):
@@ -176,7 +184,10 @@ class SpotifyProvider(MusicProvider):
         self.cache_dir = os.path.join(self.mass.cache_path, self.instance_id)
         self._playlist_pagination_states = OrderedDict()
         # Default throttler for global session (heavy rate limited)
-        self.throttler = ThrottlerManager(rate_limit=1, period=2)
+        self.throttler = _THROTTLERS.setdefault(
+            self.instance_id, ThrottlerManager(rate_limit=1, period=2)
+        )
+        self.throttler.set_rate_limit(rate_limit=1, period=2)
 
         # playback authorization is independent of the Web API tokens
         self.backend = self._create_backend()
@@ -198,7 +209,7 @@ class SpotifyProvider(MusicProvider):
                         "Developer session must use the same Spotify account as the main session."
                     )
                 # loosen the throttler when a custom client id is used
-                self.throttler = ThrottlerManager(rate_limit=45, period=30)
+                self.throttler.set_rate_limit(rate_limit=30, period=30)
                 self.dev_session_active = True
                 self.logger.info("Developer Spotify session active.")
 
@@ -228,6 +239,7 @@ class SpotifyProvider(MusicProvider):
                 await backend.unload()
         finally:
             if is_removed:
+                _THROTTLERS.pop(self.instance_id, None)
                 # Both hold reusable login material - the soloist session in the
                 # storage dir, librespot's credential in the cache - so a removed
                 # instance keeps neither, even if the teardown above failed.
@@ -1623,7 +1635,7 @@ class SpotifyProvider(MusicProvider):
         ):
             # handle spotify rate limiter
             if response.status == 429:
-                backoff_time = int(response.headers["Retry-After"])
+                backoff_time = parse_retry_after(response.headers.get("Retry-After"))
                 raise RateLimited("Spotify Rate Limiter", backoff_time=backoff_time)
             # handle temporary server error
             if response.status in (502, 503):
@@ -1674,7 +1686,7 @@ class SpotifyProvider(MusicProvider):
         ) as response:
             # handle spotify rate limiter
             if response.status == 429:
-                backoff_time = int(response.headers["Retry-After"])
+                backoff_time = parse_retry_after(response.headers.get("Retry-After"))
                 raise RateLimited("Spotify Rate Limiter", backoff_time=backoff_time)
             # handle token expired, raise ResourceTemporarilyUnavailable
             # so it will be retried (and the token refreshed)
@@ -1702,7 +1714,7 @@ class SpotifyProvider(MusicProvider):
         ) as response:
             # handle spotify rate limiter
             if response.status == 429:
-                backoff_time = int(response.headers["Retry-After"])
+                backoff_time = parse_retry_after(response.headers.get("Retry-After"))
                 raise RateLimited("Spotify Rate Limiter", backoff_time=backoff_time)
             # handle token expired, raise ResourceTemporarilyUnavailable
             # so it will be retried (and the token refreshed)
@@ -1733,7 +1745,7 @@ class SpotifyProvider(MusicProvider):
         ) as response:
             # handle spotify rate limiter
             if response.status == 429:
-                backoff_time = int(response.headers["Retry-After"])
+                backoff_time = parse_retry_after(response.headers.get("Retry-After"))
                 raise RateLimited("Spotify Rate Limiter", backoff_time=backoff_time)
             # handle token expired, raise ResourceTemporarilyUnavailable
             # so it will be retried (and the token refreshed)
