@@ -1,5 +1,10 @@
 # Personal Music Assistant changelog
 
+## 2.10.6.dev3
+
+- Publish the one-second global metadata pacing and synchronous single-track playlist
+  additions with corrected container validation.
+
 ## 2.10.6.dev2
 
 - Reduce the global metadata update interval from three seconds to one second.
