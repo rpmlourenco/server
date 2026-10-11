@@ -1,5 +1,9 @@
 # Personal Music Assistant changelog
 
+## 2.10.6.dev4
+
+- Complete the return-type updates for synchronous single-track playlist additions.
+
 ## 2.10.6.dev3
 
 - Publish the one-second global metadata pacing and synchronous single-track playlist

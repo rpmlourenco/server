@@ -741,6 +741,7 @@ async def test_add_playlist_tracks_creates_and_runs_background_task(
         "42",
         ["spotify://track/1", "spotify://track/2"],
     )
+    assert task is not None
 
     await handler_called.wait()
     await _wait_for_task_status(tasks_controller, task.id, TaskStatus.SUCCESS)

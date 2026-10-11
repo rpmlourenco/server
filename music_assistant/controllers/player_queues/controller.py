@@ -663,7 +663,7 @@ class PlayerQueuesController(QueueLoaderMixin, PlaybackTrackerMixin, StreamFeede
         self.signal_update(queue_id)
 
     @api_command("player_queues/save_as_playlist", required_scope=Scope.LIBRARY_WRITE)
-    async def save_as_playlist(self, queue_id: str, name: str) -> BackgroundTask:
+    async def save_as_playlist(self, queue_id: str, name: str) -> BackgroundTask | None:
         """
         Save the current queue items as a new playlist.
 
