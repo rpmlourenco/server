@@ -758,6 +758,32 @@ async def test_add_playlist_tracks_creates_and_runs_background_task(
     }
 
 
+async def test_add_single_playlist_track_runs_synchronously(
+    mass_minimal: MusicAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A single playlist track should be added without a background task."""
+    playlist_controller = PlaylistController(mass_minimal)
+    handler_called = False
+
+    async def fake_handle_add_playlist_tracks(db_playlist_id: str | int, uris: list[str]) -> None:
+        nonlocal handler_called
+        assert db_playlist_id == "42"
+        assert uris == ["spotify://track/1"]
+        handler_called = True
+
+    monkeypatch.setattr(
+        playlist_controller,
+        "_handle_add_playlist_tracks",
+        fake_handle_add_playlist_tracks,
+    )
+
+    task = await playlist_controller.add_playlist_tracks("42", ["spotify://track/1"])
+
+    assert task is None
+    assert handler_called is True
+
+
 class DummyMusicProvider(MusicProvider):
     """Minimal music provider used for scheduling tests."""
 

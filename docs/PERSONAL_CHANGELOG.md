@@ -1,5 +1,11 @@
 # Personal Music Assistant changelog
 
+## 2.10.6.dev2
+
+- Reduce the global metadata update interval from three seconds to one second.
+- Add a single track to a playlist synchronously; keep bulk additions as managed
+  background tasks.
+
 ## 2.10.6.dev1
 
 - Integrate the official Music Assistant 2.10.6 stable release and retain its

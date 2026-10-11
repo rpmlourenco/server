@@ -226,14 +226,17 @@ class PlaylistController(MediaControllerBase[Playlist]):
 
     async def add_playlist_tracks(
         self, db_playlist_id: str | int, uris: list[str]
-    ) -> BackgroundTask:
+    ) -> BackgroundTask | None:
         """
-        Queue adding items to a playlist.
+        Add items to a playlist.
 
         :param db_playlist_id: Library playlist id.
         :param uris: Item URIs to add to the playlist.
-        :return: Managed background task for the requested playlist update.
+        :return: Managed background task for updates containing multiple items.
         """
+        if len(uris) == 1:
+            await self._handle_add_playlist_tracks(db_playlist_id, uris)
+            return None
         playlist_name = str(db_playlist_id)
         with suppress(MediaNotFoundError):
             playlist_name = (await self.get_library_item(int(db_playlist_id))).name

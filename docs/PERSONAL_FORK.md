@@ -9,7 +9,7 @@ container is built, and how future upstream upgrades must be handled.
 Current personal version:
 
 ```text
-2.10.6.dev1
+2.10.6.dev2
 ```
 
 Upstream base:
@@ -35,6 +35,8 @@ unchanged. It also includes the post-dev4 typing corrections.
 Provider-specific throttles remain unchanged, including LRCLIB's public endpoint.
 `2.10.6.dev1` integrates the official 2.10.6 stable release while preserving the
 personal behaviour and using the official 2.10.6 container as its image base.
+`2.10.6.dev2` reduces global metadata pacing to one second and handles a single
+playlist addition synchronously while retaining background tasks for bulk additions.
 Published versions use Git tags and matching container/add-on versions; they do not
 require new branches. Temporary development branches are merged into `main` after
 validation. GitHub's default branch and local tracking/comparison base must be `main`.
@@ -46,7 +48,7 @@ add-on catalog. Never overwrite a numbered release tag to deliver new code.
 The personal ARM64 image is published as:
 
 ```text
-ghcr.io/rpmlourenco/server:2.10.6.dev1
+ghcr.io/rpmlourenco/server:2.10.6.dev2
 ```
 
 ## Design principles

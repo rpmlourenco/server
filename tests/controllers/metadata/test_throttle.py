@@ -7,6 +7,6 @@ if TYPE_CHECKING:
 
 
 async def test_global_metadata_throttle(metadata_controller: MetaDataController) -> None:
-    """Allow one metadata update every three seconds across all item types."""
+    """Allow one metadata update every second across all item types."""
     assert metadata_controller._throttler.rate_limit == 1
-    assert metadata_controller._throttler.period == 3
+    assert metadata_controller._throttler.period == 1
