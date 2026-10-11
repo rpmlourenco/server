@@ -1,5 +1,10 @@
 # Personal Music Assistant changelog
 
+## 2.10.6.dev5
+
+- Return the frontend's empty-list sentinel after a synchronous single-track playlist
+  addition so it no longer displays a false background-task notification.
+
 ## 2.10.6.dev4
 
 - Complete the return-type updates for synchronous single-track playlist additions.

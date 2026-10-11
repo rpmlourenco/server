@@ -9,7 +9,7 @@ container is built, and how future upstream upgrades must be handled.
 Current personal version:
 
 ```text
-2.10.6.dev4
+2.10.6.dev5
 ```
 
 Upstream base:
@@ -39,6 +39,8 @@ personal behaviour and using the official 2.10.6 container as its image base.
 playlist addition synchronously while retaining background tasks for bulk additions.
 `2.10.6.dev3` publishes those changes with the corrected container validation workflow.
 `2.10.6.dev4` completes the return-type updates required by the global type check.
+`2.10.6.dev5` returns an empty task list for synchronous single-track additions,
+matching the frontend's no-background-task sentinel and suppressing its false toast.
 Published versions use Git tags and matching container/add-on versions; they do not
 require new branches. Temporary development branches are merged into `main` after
 validation. GitHub's default branch and local tracking/comparison base must be `main`.
@@ -50,7 +52,7 @@ add-on catalog. Never overwrite a numbered release tag to deliver new code.
 The personal ARM64 image is published as:
 
 ```text
-ghcr.io/rpmlourenco/server:2.10.6.dev4
+ghcr.io/rpmlourenco/server:2.10.6.dev5
 ```
 
 ## Design principles

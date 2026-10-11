@@ -741,7 +741,7 @@ async def test_add_playlist_tracks_creates_and_runs_background_task(
         "42",
         ["spotify://track/1", "spotify://track/2"],
     )
-    assert task is not None
+    assert not isinstance(task, list)
 
     await handler_called.wait()
     await _wait_for_task_status(tasks_controller, task.id, TaskStatus.SUCCESS)
@@ -763,7 +763,7 @@ async def test_add_single_playlist_track_runs_synchronously(
     mass_minimal: MusicAssistant,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A single playlist track should be added without a background task."""
+    """A single playlist track should return the frontend's no-task sentinel."""
     playlist_controller = PlaylistController(mass_minimal)
     handler_called = False
 
@@ -779,9 +779,11 @@ async def test_add_single_playlist_track_runs_synchronously(
         fake_handle_add_playlist_tracks,
     )
 
-    task = await playlist_controller.add_playlist_tracks("42", ["spotify://track/1"])
+    result = await playlist_controller.add_playlist_tracks("42", ["spotify://track/1"])
 
-    assert task is None
+    # The frontend maps non-list results (including null) to a one-element list before
+    # deciding whether to show its background-task toast. Only [] suppresses that toast.
+    assert result == []
     assert handler_called is True
 
 
