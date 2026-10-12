@@ -55,6 +55,7 @@ jobs:
             python /src/tests/controllers/music/test_local_track_editions.py -v
             runuser -u nobody -- env PYTHONPATH=/src python -m pytest tests/controllers/music/test_local_track_editions.py tests/controllers/music/test_external_id_lookup.py tests/helpers/test_compare.py tests/helpers/test_tags.py tests/providers/filesystem/test_artist_path.py tests/providers/filesystem/test_nfo_resolution.py -q -p no:cacheprovider
             runuser -u nobody -- env PYTHONPATH=/src python -m pytest tests/helpers/test_audio_analysis_sidecar.py tests/helpers/test_offline_audio_analysis.py tests/helpers/test_offline_imports.py tests/controllers/streams/test_audio_analysis.py tests/providers/smart_fades tests/controllers/streams/smart_fades/test_models.py -q -p no:cacheprovider
+            runuser -u nobody -- env PYTHONPATH=/src python -m pytest tests/providers/sonic_similarity -q -p no:cacheprovider
             runuser -u nobody -- env PYTHONPATH=/src python -m pytest tests/controllers/music/test_similar_tracks_merge.py tests/controllers/music/test_tracks.py tests/controllers/player_queues/test_autoplay_dispatch.py tests/providers/radio_playlist/test_radio_playlist.py -q -p no:cacheprovider
             export UV_PROJECT_ENVIRONMENT="$(python -c "import sys; print(sys.prefix)")"
             export UV_NO_SYNC=1

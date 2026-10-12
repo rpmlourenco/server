@@ -9,7 +9,7 @@ container is built, and how future upstream upgrades must be handled.
 Current personal version:
 
 ```text
-2.10.6.dev5
+2.10.6.dev7
 ```
 
 Upstream base:
@@ -41,6 +41,10 @@ playlist addition synchronously while retaining background tasks for bulk additi
 `2.10.6.dev4` completes the return-type updates required by the global type check.
 `2.10.6.dev5` returns an empty task list for synchronous single-track additions,
 matching the frontend's no-background-task sentinel and suppressing its false toast.
+`2.10.6.dev6` contains the Sonic index reconciliation source change, but its published
+container did not overlay those provider files and therefore retained the upstream
+runtime behaviour. `2.10.6.dev7` corrects the container overlay and adds a build-time
+assertion that the installed image contains the reconciliation implementation.
 Published versions use Git tags and matching container/add-on versions; they do not
 require new branches. Temporary development branches are merged into `main` after
 validation. GitHub's default branch and local tracking/comparison base must be `main`.
@@ -52,7 +56,7 @@ add-on catalog. Never overwrite a numbered release tag to deliver new code.
 The personal ARM64 image is published as:
 
 ```text
-ghcr.io/rpmlourenco/server:2.10.6.dev5
+ghcr.io/rpmlourenco/server:2.10.6.dev7
 ```
 
 ## Design principles
@@ -526,10 +530,13 @@ FROM ghcr.io/music-assistant/server:${UPSTREAM_VERSION}
 ```
 
 It overlays the personal Python/provider files into the installed Music Assistant
-package.
+package, including both the Sonic analysis provider and the Sonic Similarity index
+implementation.
 
 The build verifies that official application secrets are still present and checks for
-key personal symbols before the image is accepted.
+key personal symbols in the installed package before the image is accepted. The Sonic
+check specifically requires stale-entry pruning, the analysis-state change token and
+the forced Character rebuild path, preventing a source-only fix from being published.
 
 The modified Python files are byte-compiled as an additional build-time check.
 

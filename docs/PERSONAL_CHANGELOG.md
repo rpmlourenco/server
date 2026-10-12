@@ -1,5 +1,21 @@
 # Personal Music Assistant changelog
 
+## 2.10.6.dev7
+
+- Install the Sonic Similarity reconciliation source into the personal container;
+  `2.10.6.dev6` published the source commit but omitted these provider files from the
+  image overlay and therefore retained the previous runtime behaviour.
+- Add a build-time check against the installed package so future images cannot pass
+  when the stale-entry pruning, analysis-state token or forced Character rebuild is
+  absent.
+
+## 2.10.6.dev6
+
+- Reconcile Character with the current Sonic analysis rows, pruning deleted tracks
+  and replacing embeddings when an analysis changes at an existing item path.
+- Recreate Character during a manual rebuild while keeping ordinary additions and
+  deletions incremental.
+
 ## 2.10.6.dev5
 
 - Return the frontend's empty-list sentinel after a synchronous single-track playlist
