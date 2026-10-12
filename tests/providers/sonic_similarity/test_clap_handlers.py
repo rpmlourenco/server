@@ -132,6 +132,42 @@ class TestRebuildClapIndexFromDatabase:
         plugin._clap_index.save.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_incremental_rebuild_prunes_stale_entries(
+        self, make_plugin: Callable[..., Any], mock_mass: MagicMock
+    ) -> None:
+        """Keys no longer backed by a valid database embedding are removed and persisted."""
+        mock_mass._iter_audio_analysis_rows_data = [
+            make_analysis_row(item_id="kept", provider="spotify", clap_embedding=[0.1] * 1024),
+        ]
+        plugin = make_plugin(clap_enabled=True)
+        plugin._clap_index.contains = MagicMock(return_value=True)
+        plugin._clap_index.remove_missing = AsyncMock(return_value=2)
+
+        await plugin._rebuild_clap_index_from_database()
+
+        plugin._clap_index.remove_missing.assert_awaited_once_with({("spotify", "kept")})
+        plugin._clap_index.add.assert_not_awaited()
+        plugin._clap_index.save.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_forced_rebuild_replaces_existing_embeddings(
+        self, make_plugin: Callable[..., Any], mock_mass: MagicMock
+    ) -> None:
+        """A manual rebuild resets the index and re-adds rows even when their keys existed."""
+        mock_mass._iter_audio_analysis_rows_data = [
+            make_analysis_row(item_id="changed", provider="spotify", clap_embedding=[0.3] * 1024),
+        ]
+        plugin = make_plugin(clap_enabled=True)
+        plugin._clap_index.contains = MagicMock(return_value=True)
+
+        await plugin._rebuild_clap_index_from_database(force=True)
+
+        plugin._clap_index.reset.assert_awaited_once()
+        plugin._clap_index.contains.assert_not_called()
+        plugin._clap_index.add.assert_awaited_once()
+        plugin._clap_index.save.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_skips_malformed_json(
         self, make_plugin: Callable[..., Any], mock_mass: MagicMock
     ) -> None:

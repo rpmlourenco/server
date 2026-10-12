@@ -2276,7 +2276,7 @@
   "provider.sonic_similarity.config_entries.rebuild_18dim_index.description": "Re-scan all stored signatures and rebuild the weighted-Euclidean search index. Runs in the background; refresh the page to see updated counts.",
   "provider.sonic_similarity.config_entries.rebuild_18dim_index.label": "Rebuild Traits index",
   "provider.sonic_similarity.config_entries.rebuild_clap_index.action_label": "Rebuild Character index",
-  "provider.sonic_similarity.config_entries.rebuild_clap_index.description": "Incrementally re-scan audio_analysis rows and add any missing CLAP embeddings to the 1024-dim index. Runs in the background; refresh the page to see updated counts.",
+  "provider.sonic_similarity.config_entries.rebuild_clap_index.description": "Fully recreate the 1024-dim Character index from stored audio_analysis rows, replacing changed embeddings and removing stale entries. Runs in the background; refresh the page to see updated counts.",
   "provider.sonic_similarity.config_entries.rebuild_clap_index.label": "Rebuild Character index",
   "provider.sonic_similarity.config_entries.similar_tracks_diversity.description": "0 keeps results closest to the seed; 10 maximises variety via MMR (some results may be less similar but more distinct from each other). Traits engine only.",
   "provider.sonic_similarity.config_entries.similar_tracks_diversity.label": "Similar Tracks diversity",

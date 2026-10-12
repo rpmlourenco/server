@@ -68,6 +68,9 @@ def mock_mass(tmp_path: Path) -> MagicMock:
     mass.music.tracks.get = AsyncMock()
     mass.music.database = MagicMock()
     mass.music.database.get_count_from_query = AsyncMock(return_value=0)
+    mass.music.database.get_rows_from_query = AsyncMock(
+        return_value=[{"row_count": 0, "max_id": 0}]
+    )
 
     # tasks controller (scheduled background jobs)
     mass.tasks = MagicMock()
@@ -179,6 +182,8 @@ def make_plugin(
             clap_index.contains = MagicMock(return_value=False)
             clap_index.add = AsyncMock()
             clap_index.save = AsyncMock()
+            clap_index.reset = AsyncMock()
+            clap_index.remove_missing = AsyncMock(return_value=0)
             clap_index.search = AsyncMock(return_value=[])
             clap_index.get_embedding_by_item_id = MagicMock(return_value=None)
             plugin._clap_index = clap_index

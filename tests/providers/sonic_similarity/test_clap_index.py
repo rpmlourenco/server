@@ -136,6 +136,44 @@ async def test_get_embedding_o1_lookup_matches_provider(
 
 
 @pytest.mark.asyncio
+async def test_remove_missing_prunes_only_stale_entries(
+    tmp_path: Path, logger: logging.Logger
+) -> None:
+    """Reconciliation removes stale keys while preserving keys still present in SQLite."""
+    idx = ClapIndex(_make_mass(tmp_path), logger)  # type: ignore[arg-type]
+    await idx.load()
+    await idx.add("spotify", "keep", _unit_vec(1))
+    await idx.add("spotify", "remove", _unit_vec(2))
+
+    removed = await idx.remove_missing({("spotify", "keep")})
+
+    assert removed == 1
+    assert idx.contains("spotify", "keep")
+    assert not idx.contains("spotify", "remove")
+    assert len(idx) == 1
+
+
+@pytest.mark.asyncio
+async def test_reset_drops_all_entries_and_accepts_replacements(
+    tmp_path: Path, logger: logging.Logger
+) -> None:
+    """A forced rebuild can reset the derived cache and add a new vector under the same key."""
+    idx = ClapIndex(_make_mass(tmp_path), logger)  # type: ignore[arg-type]
+    await idx.load()
+    await idx.add("spotify", "changed", _unit_vec(1))
+
+    await idx.reset()
+    assert len(idx) == 0
+    assert not idx.contains("spotify", "changed")
+
+    replacement = _unit_vec(9)
+    await idx.add("spotify", "changed", replacement)
+    stored = idx.get_embedding("spotify", "changed")
+    assert stored is not None
+    np.testing.assert_allclose(stored, replacement, atol=1e-3)
+
+
+@pytest.mark.asyncio
 async def test_save_does_not_leave_tmp_file_behind(tmp_path: Path, logger: logging.Logger) -> None:
     """The atomic-rename path consumes the .tmp file; nothing lingers after success."""
     idx = ClapIndex(_make_mass(tmp_path), logger)  # type: ignore[arg-type]

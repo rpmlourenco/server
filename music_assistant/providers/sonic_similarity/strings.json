@@ -65,7 +65,7 @@
     },
     "rebuild_clap_index": {
       "label": "Rebuild Character index",
-      "description": "Incrementally re-scan audio_analysis rows and add any missing CLAP embeddings to the 1024-dim index. Runs in the background; refresh the page to see updated counts.",
+      "description": "Fully recreate the 1024-dim Character index from stored audio_analysis rows, replacing changed embeddings and removing stale entries. Runs in the background; refresh the page to see updated counts.",
       "action_label": "Rebuild Character index"
     }
   },

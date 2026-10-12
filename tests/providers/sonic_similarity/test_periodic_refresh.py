@@ -46,16 +46,18 @@ def _make_config() -> MagicMock:
 
 
 class TestPeriodicRefresh:
-    """_periodic_refresh skips when the row count is unchanged, rebuilds otherwise."""
+    """_periodic_refresh skips when the analysis state is unchanged, rebuilds otherwise."""
 
     @pytest.mark.asyncio
     async def test_skips_rebuild_when_row_count_unchanged(
         self, make_plugin: Callable[..., Any], mock_mass: MagicMock
     ) -> None:
-        """No row count delta → no rebuild calls and counter stays put."""
+        """No count or max-id delta means no rebuild calls and the token stays put."""
         plugin = make_plugin(clap_enabled=True)
-        plugin._last_seen_row_count = 42
-        mock_mass.music.database.get_count_from_query = AsyncMock(return_value=42)
+        plugin._last_seen_analysis_state = (42, 100)
+        mock_mass.music.database.get_rows_from_query = AsyncMock(
+            return_value=[{"row_count": 42, "max_id": 100}]
+        )
         plugin._rebuild_search_index = AsyncMock()
         plugin._rebuild_clap_index_from_database = AsyncMock()
 
@@ -63,7 +65,7 @@ class TestPeriodicRefresh:
 
         plugin._rebuild_search_index.assert_not_awaited()
         plugin._rebuild_clap_index_from_database.assert_not_awaited()
-        assert plugin._last_seen_row_count == 42
+        assert plugin._last_seen_analysis_state == (42, 100)
 
     @pytest.mark.asyncio
     async def test_rebuilds_when_row_count_increased(
@@ -71,16 +73,18 @@ class TestPeriodicRefresh:
     ) -> None:
         """Row count grew → both indexes rebuild; the real _rebuild_search_index bumps the counter."""
         plugin = make_plugin(clap_enabled=True)
-        plugin._last_seen_row_count = 10
-        mock_mass.music.database.get_count_from_query = AsyncMock(return_value=15)
+        plugin._last_seen_analysis_state = (10, 20)
+        mock_mass.music.database.get_rows_from_query = AsyncMock(
+            return_value=[{"row_count": 15, "max_id": 25}]
+        )
         # Real _rebuild_search_index runs end-to-end (iter_merged is empty) and
-        # bumps _last_seen_row_count via its own pre-count snapshot.
+        # advances _last_seen_analysis_state via its own pre-rebuild snapshot.
         plugin._rebuild_clap_index_from_database = AsyncMock()
 
         await plugin._periodic_refresh()
 
         plugin._rebuild_clap_index_from_database.assert_awaited_once()
-        assert plugin._last_seen_row_count == 15
+        assert plugin._last_seen_analysis_state == (15, 25)
 
     @pytest.mark.asyncio
     async def test_rebuilds_when_row_count_decreased(
@@ -88,14 +92,33 @@ class TestPeriodicRefresh:
     ) -> None:
         """Defensive: a row-count drop also triggers rebuild (handles future deletes)."""
         plugin = make_plugin(clap_enabled=True)
-        plugin._last_seen_row_count = 50
-        mock_mass.music.database.get_count_from_query = AsyncMock(return_value=40)
+        plugin._last_seen_analysis_state = (50, 100)
+        mock_mass.music.database.get_rows_from_query = AsyncMock(
+            return_value=[{"row_count": 40, "max_id": 100}]
+        )
         plugin._rebuild_clap_index_from_database = AsyncMock()
 
         await plugin._periodic_refresh()
 
         plugin._rebuild_clap_index_from_database.assert_awaited_once()
-        assert plugin._last_seen_row_count == 40
+        assert plugin._last_seen_analysis_state == (40, 100)
+
+    @pytest.mark.asyncio
+    async def test_rebuilds_when_rows_replaced_at_same_count(
+        self, make_plugin: Callable[..., Any], mock_mass: MagicMock
+    ) -> None:
+        """A higher max id detects replacement rows even when the count is unchanged."""
+        plugin = make_plugin(clap_enabled=True)
+        plugin._last_seen_analysis_state = (50, 100)
+        mock_mass.music.database.get_rows_from_query = AsyncMock(
+            return_value=[{"row_count": 50, "max_id": 120}]
+        )
+        plugin._rebuild_clap_index_from_database = AsyncMock()
+
+        await plugin._periodic_refresh()
+
+        plugin._rebuild_clap_index_from_database.assert_awaited_once_with(force=True)
+        assert plugin._last_seen_analysis_state == (50, 120)
 
     @pytest.mark.asyncio
     async def test_counter_not_advanced_when_rebuild_fails(
@@ -103,8 +126,10 @@ class TestPeriodicRefresh:
     ) -> None:
         """A failing 18-dim rebuild leaves the counter untouched so the next tick retries."""
         plugin = make_plugin(clap_enabled=True)
-        plugin._last_seen_row_count = 10
-        mock_mass.music.database.get_count_from_query = AsyncMock(return_value=15)
+        plugin._last_seen_analysis_state = (10, 20)
+        mock_mass.music.database.get_rows_from_query = AsyncMock(
+            return_value=[{"row_count": 15, "max_id": 25}]
+        )
         # _rebuild_search_index raises → _safe_rebuild swallows into _last_rebuild_error
         # → counter is never advanced because the pre-count bump line is unreached.
         plugin._rebuild_search_index = AsyncMock(side_effect=RuntimeError("disk full"))
@@ -112,17 +137,17 @@ class TestPeriodicRefresh:
 
         await plugin._periodic_refresh()
 
-        assert plugin._last_seen_row_count == 10
+        assert plugin._last_seen_analysis_state == (10, 20)
         assert plugin._last_rebuild_error.get("Traits") == "disk full"
 
     @pytest.mark.asyncio
-    async def test_count_query_failure_skips_tick(
+    async def test_state_query_failure_skips_tick(
         self, make_plugin: Callable[..., Any], mock_mass: MagicMock
     ) -> None:
-        """If the count query itself fails, skip the tick — no rebuild attempted."""
+        """If the state query itself fails, skip the tick — no rebuild attempted."""
         plugin = make_plugin(clap_enabled=True)
-        plugin._last_seen_row_count = 10
-        mock_mass.music.database.get_count_from_query = AsyncMock(side_effect=RuntimeError("oops"))
+        plugin._last_seen_analysis_state = (10, 20)
+        mock_mass.music.database.get_rows_from_query = AsyncMock(side_effect=RuntimeError("oops"))
         plugin._rebuild_search_index = AsyncMock()
         plugin._rebuild_clap_index_from_database = AsyncMock()
 
@@ -130,7 +155,7 @@ class TestPeriodicRefresh:
 
         plugin._rebuild_search_index.assert_not_awaited()
         plugin._rebuild_clap_index_from_database.assert_not_awaited()
-        assert plugin._last_seen_row_count == 10
+        assert plugin._last_seen_analysis_state == (10, 20)
 
     @pytest.mark.asyncio
     async def test_clap_skipped_when_index_disabled(
@@ -138,8 +163,10 @@ class TestPeriodicRefresh:
     ) -> None:
         """When CLAP isn't configured, only 18-dim is rebuilt."""
         plugin = make_plugin()  # clap_enabled=False → _clap_index stays None
-        plugin._last_seen_row_count = 0
-        mock_mass.music.database.get_count_from_query = AsyncMock(return_value=5)
+        plugin._last_seen_analysis_state = (0, 0)
+        mock_mass.music.database.get_rows_from_query = AsyncMock(
+            return_value=[{"row_count": 5, "max_id": 5}]
+        )
         plugin._rebuild_clap_index_from_database = AsyncMock()
 
         await plugin._periodic_refresh()

@@ -196,6 +196,21 @@ class ClapIndex:
         self._dirty_adds = 0
         self._last_save = time.monotonic()
 
+    async def reset(self) -> None:
+        """Replace the in-memory index with a fresh empty index."""
+        await asyncio.to_thread(self._reset_sync)
+        self._dirty_adds = 0
+        self._last_save = time.monotonic()
+
+    async def remove_missing(self, valid_keys: set[tuple[str, str]]) -> int:
+        """
+        Remove entries whose ``(provider, item_id)`` key is absent from the source of truth.
+
+        :param valid_keys: Keys that still have a valid CLAP embedding in SQLite.
+        :return: Number of removed index entries.
+        """
+        return await asyncio.to_thread(self._remove_missing_sync, valid_keys)
+
     def __len__(self) -> int:
         """Return the number of tracks currently in the index."""
         return len(self._reverse)
@@ -258,6 +273,35 @@ class ClapIndex:
                     self._logger.exception("Failed to load CLAP keys file, starting fresh")
                     self._reverse = {}
                     self._keys_path.unlink(missing_ok=True)
+
+    def _reset_sync(self) -> None:
+        """Replace the live index and reverse map atomically with empty instances."""
+        from usearch.index import (  # type: ignore[attr-defined]  # noqa: PLC0415
+            Index,
+            MetricKind,
+            ScalarKind,
+        )
+
+        new_index = Index(
+            ndim=CLAP_EMBEDDING_DIM,
+            metric=MetricKind.Cos,
+            dtype=ScalarKind.F16,
+        )
+        with self._lock:
+            self._index = new_index
+            self._reverse = {}
+
+    def _remove_missing_sync(self, valid_keys: set[tuple[str, str]]) -> int:
+        """Remove stale labels under the index lock and return the number removed."""
+        with self._lock:
+            if self._index is None:
+                return 0
+            stale_labels = [label for label, key in self._reverse.items() if key not in valid_keys]
+            for label in stale_labels:
+                if label in self._index:
+                    self._index.remove(label)
+                self._reverse.pop(label, None)
+            return len(stale_labels)
 
     def _add_sync(self, label: int, vec: np.ndarray, provider: str, item_id: str) -> bool:
         """Insert the vector with its reverse entry, or return False if the index was released."""

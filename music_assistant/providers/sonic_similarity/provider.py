@@ -140,7 +140,9 @@ class SonicSimilarityPlugin(PluginProvider):
         self._text_encoder_lock = asyncio.Lock()
         # Per-label last error from fire-and-forget rebuild tasks.
         self._last_rebuild_error: dict[str, str] = {}
-        self._last_seen_row_count: int = 0
+        # (row count, highest row id). INSERT OR REPLACE advances max_id even
+        # when an analysis changes without changing the total number of rows.
+        self._last_seen_analysis_state: tuple[int, int] = (0, 0)
 
     async def get_config_entries(self) -> tuple[ConfigEntry, ...]:
         """Return Config entries to configure this provider."""
@@ -298,7 +300,10 @@ class SonicSimilarityPlugin(PluginProvider):
                     translation_owner=self.translation_owner,
                 )
             self.mass.create_task(
-                self._safe_rebuild("Character", self._rebuild_clap_index_from_database)
+                self._safe_rebuild(
+                    "Character",
+                    lambda: self._rebuild_clap_index_from_database(force=True),
+                )
             )
             return None
         return await super().handle_config_action(action)
@@ -698,31 +703,45 @@ class SonicSimilarityPlugin(PluginProvider):
         # listeners to re-fetch the config now that the (background) rebuild is done
         self.mass.signal_event(EventType.PROVIDERS_UPDATED, data=self.mass.get_providers())
 
-    async def _count_analysis_rows(self) -> int:
-        """Return the current count of sonic_analysis track rows in the database."""
-        return await self.mass.music.database.get_count_from_query(
-            f"SELECT 1 FROM {DB_TABLE_AUDIO_ANALYSIS} "
+    async def _get_analysis_state(self) -> tuple[int, int]:
+        """Return a cheap change token for sonic_analysis track rows."""
+        rows = await self.mass.music.database.get_rows_from_query(
+            f"SELECT COUNT(*) AS row_count, COALESCE(MAX(id), 0) AS max_id "
+            f"FROM {DB_TABLE_AUDIO_ANALYSIS} "
             "WHERE aa_provider_domain = :aa_provider_domain AND media_type = :media_type",
             {"aa_provider_domain": AA_PROVIDER_DOMAIN, "media_type": MediaType.TRACK.value},
+            limit=1,
         )
+        if not rows:
+            return (0, 0)
+        return (int(rows[0]["row_count"]), int(rows[0]["max_id"]))
 
     async def _periodic_refresh(self) -> None:
-        """Scheduled-task handler: rebuild indexes when the analysis row count changed."""
+        """Scheduled-task handler: rebuild indexes when the analysis state changed."""
         try:
-            current = await self._count_analysis_rows()
+            current = await self._get_analysis_state()
         except Exception:
-            self.logger.exception("Periodic refresh: row count query failed; skipping")
+            self.logger.exception("Periodic refresh: analysis-state query failed; skipping")
             return
-        if current == self._last_seen_row_count:
+        previous = self._last_seen_analysis_state
+        if current == previous:
             return
         self.logger.info(
-            "Periodic refresh: analysis row count changed %d → %d, rebuilding indexes",
-            self._last_seen_row_count,
+            "Periodic refresh: analysis state changed %s → %s, rebuilding indexes",
+            previous,
             current,
         )
         await self._safe_rebuild("Traits", self._rebuild_search_index)
         if self._clap_index is not None:
-            await self._safe_rebuild("Character", self._rebuild_clap_index_from_database)
+            # A stable count with a newer row id means at least one row was replaced.
+            # Rebuild Character fully so an existing provider/item key gets its new vector.
+            force_character = current[0] == previous[0] and current[1] != previous[1]
+            rebuild_character = (
+                (lambda: self._rebuild_clap_index_from_database(force=True))
+                if force_character
+                else self._rebuild_clap_index_from_database
+            )
+            await self._safe_rebuild("Character", rebuild_character)
 
     def _delete_all_index_files(self) -> None:
         """Best-effort removal of every versioned index file for the active domain."""
@@ -1212,7 +1231,7 @@ class SonicSimilarityPlugin(PluginProvider):
             "index_size": len(self._search_index) if self._search_index is not None else 0,
         }
         if self._clap_index is not None:
-            await self._rebuild_clap_index_from_database()
+            await self._rebuild_clap_index_from_database(force=True)
             result["clap_index_size"] = len(self._clap_index)
         return result
 
@@ -1251,17 +1270,17 @@ class SonicSimilarityPlugin(PluginProvider):
 
     async def _rebuild_search_index(self) -> None:
         """Rebuild the search index from all stored analysis rows."""
-        # Snapshot the count BEFORE the rebuild: SELECT is snapshot-isolated, so rows
-        # added mid-rebuild are missed — counting after would skip the next refresh.
+        # Snapshot the state BEFORE the rebuild: SELECT is snapshot-isolated, so rows
+        # added mid-rebuild are missed — sampling after would skip the next refresh.
         try:
-            pre_count = await self._count_analysis_rows()
+            pre_state = await self._get_analysis_state()
         except Exception:
-            self.logger.debug("Pre-rebuild row count failed; counter unchanged", exc_info=True)
-            pre_count = None
+            self.logger.debug("Pre-rebuild analysis state failed; token unchanged", exc_info=True)
+            pre_state = None
         async with self._rebuild_lock:
             await self._rebuild_search_index_locked()
-        if pre_count is not None:
-            self._last_seen_row_count = pre_count
+        if pre_state is not None:
+            self._last_seen_analysis_state = pre_state
 
     async def _rebuild_search_index_locked(self) -> None:  # noqa: PLR0915
         """Rebuild body — assumes self._rebuild_lock is held."""
@@ -1602,20 +1621,26 @@ class SonicSimilarityPlugin(PluginProvider):
     # Optional CLAP index (1024-dim cosine over sonic_analysis embeddings)
     # ------------------------------------------------------------------
 
-    async def _rebuild_clap_index_from_database(self) -> None:
+    async def _rebuild_clap_index_from_database(self, *, force: bool = False) -> None:
         """
-        Add any audio_analysis rows with clap_embedding that aren't yet indexed.
+        Reconcile the Character index with CLAP embeddings stored in audio_analysis.
 
-        Idempotent and incremental: existing entries are skipped via the
-        index's contains() check, so a rebuild after no new analyses is
-        cheap. Guarded by _clap_rebuild_lock so a manual rebuild_index
-        cannot interleave with a scheduled refresh.
+        The normal path stays incremental: existing entries are skipped, missing
+        entries are added, and entries deleted from SQLite are pruned. A forced
+        rebuild first resets the derived index so changed embeddings at an existing
+        provider/item path are replaced. Guarded by _clap_rebuild_lock so manual
+        and scheduled rebuilds cannot interleave.
+
+        :param force: Recreate every indexed embedding instead of adding only missing ones.
         """
         if self._clap_index is None:
             return
         async with self._clap_rebuild_lock:
+            if force:
+                await self._clap_index.reset()
             added = 0
             seen: set[tuple[str, str]] = set()
+            valid_keys: set[tuple[str, str]] = set()
             async for row in self.mass.streams.audio_analysis.iter_audio_analysis_rows(
                 AA_PROVIDER_DOMAIN
             ):
@@ -1623,8 +1648,6 @@ class SonicSimilarityPlugin(PluginProvider):
                 if key in seen:
                     continue
                 seen.add(key)
-                if self._clap_index.contains(row["provider"], row["item_id"]):
-                    continue
                 try:
                     raw = json.loads(row["analysis_data"])
                 except ValueError, TypeError:
@@ -1633,6 +1656,9 @@ class SonicSimilarityPlugin(PluginProvider):
                     (raw.get("extra_data") or {}).get(EXTRA_DATA_CLAP_EMBEDDING)
                 )
                 if emb is None:
+                    continue
+                valid_keys.add(key)
+                if not force and self._clap_index.contains(row["provider"], row["item_id"]):
                     continue
                 try:
                     await self._clap_index.add(row["provider"], row["item_id"], emb)
@@ -1644,9 +1670,16 @@ class SonicSimilarityPlugin(PluginProvider):
                         row["item_id"],
                         err,
                     )
-            if added > 0:
+            removed = await self._clap_index.remove_missing(valid_keys)
+            if force or added or removed:
                 await self._clap_index.save()
-                self.logger.info("Added %d new embeddings to Character index", added)
+                self.logger.info(
+                    "%s Character index: %d added, %d stale removed, %d total",
+                    "Rebuilt" if force else "Reconciled",
+                    added,
+                    removed,
+                    len(self._clap_index),
+                )
 
     async def _handle_similar_clap(
         self, item_id: str, limit: int = 25, seed_provider: str | None = None
