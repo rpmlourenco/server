@@ -67,6 +67,8 @@ HOMEASSISTANT_SYSTEM_USER: Final[str] = "homeassistant_system"
 INGRESS_SERVER_PORT: Final[int] = 8094
 # Fixed address of the HA Supervisor on the hassio network, the only legitimate ingress peer
 HASSIO_SUPERVISOR_IP: Final[str] = "172.30.32.2"
+# Origin of the hosted Music Assistant web app, used for Remote Access
+APP_MA_HOST: Final[str] = "https://app.music-assistant.io"
 
 UNKNOWN_ARTIST: Final[str] = "[unknown]"
 UNKNOWN_ARTIST_ID_MBID: Final[str] = "125ec42a-7229-4250-afc5-e057484327fe"
@@ -101,6 +103,7 @@ CONF_SERVER_ID: Final[str] = "server_id"
 CONF_ENCRYPTION_KEY: Final[str] = "encryption_key"
 CONF_ENCRYPTION_KEY_MIGRATED: Final[str] = "encryption_key_migrated"
 CONF_NFS_SUBFOLDER_MIGRATED: Final[str] = "nfs_subfolder_migrated"
+CONF_APPLE_MUSIC_SYNC_SCHEDULE_MIGRATED: Final[str] = "apple_music_sync_schedule_migrated"
 CONF_RETIRED_LOCAL_AUDIO_CLEANED: Final[str] = "retired_local_audio_cleaned"
 CONF_IP_ADDRESS: Final[str] = "ip_address"
 CONF_PORT: Final[str] = "port"

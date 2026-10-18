@@ -15,7 +15,7 @@ from music_assistant_models.media_items import (
     UniqueList,
 )
 
-from music_assistant.providers.lastfm_recommendations.parsers import parse_track
+from music_assistant.providers.lastfm_recommendations.parsers import SearchIncomplete, parse_track
 
 
 def _track(
@@ -50,6 +50,7 @@ def mass_mock() -> Mock:
     """Provide a local-only Music Assistant library."""
     mass = Mock()
     mass.music.providers = []
+    mass.config.get_provider_configs = AsyncMock(return_value=[])
     mass.music.tracks.get_library_item_by_external_ids = AsyncMock(return_value=None)
     mass.music.tracks.library_items = AsyncMock(return_value=[])
     return mass
@@ -98,14 +99,16 @@ async def test_rejects_nonidentical_or_nonflac_match(
     """A cover, alternate version, different title or non-FLAC file cannot pass."""
     mass_mock.music.tracks.library_items.return_value = [candidate]
 
-    assert await parse_track(_lastfm_track(lastfm_name), mass_mock, "lastfm") is None
+    with pytest.raises(SearchIncomplete):
+        await parse_track(_lastfm_track(lastfm_name), mass_mock, "lastfm")
 
 
 async def test_rejects_ambiguous_local_match(mass_mock: Mock) -> None:
     """Two distinct library recordings with the same display name are not guessed."""
     mass_mock.music.tracks.library_items.return_value = [_track("1"), _track("2")]
 
-    assert await parse_track(_lastfm_track(), mass_mock, "lastfm") is None
+    with pytest.raises(SearchIncomplete):
+        await parse_track(_lastfm_track(), mass_mock, "lastfm")
 
 
 async def test_version_suffix_matches_local_version(mass_mock: Mock) -> None:

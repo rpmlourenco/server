@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG UPSTREAM_VERSION=2.10.6
+ARG UPSTREAM_VERSION=2.10.7
 FROM ghcr.io/music-assistant/server:${UPSTREAM_VERSION}
 
 ARG PERSONAL_VERSION
@@ -9,6 +9,7 @@ ARG PERSONAL_VERSION
 # and replace the personal fixes maintained by this branch.
 COPY music_assistant/controllers/music/controller.py /tmp/ma-sonos-patch/controllers/music/controller.py
 COPY music_assistant/controllers/metadata/controller.py /tmp/ma-sonos-patch/controllers/metadata/controller.py
+COPY music_assistant/controllers/player_queues/controller.py /tmp/ma-sonos-patch/controllers/player_queues/controller.py
 COPY music_assistant/controllers/music/media/playlists.py /tmp/ma-sonos-patch/controllers/music/media/playlists.py
 COPY music_assistant/controllers/music/media/tracks.py /tmp/ma-sonos-patch/controllers/music/media/tracks.py
 COPY music_assistant/helpers/tags.py /tmp/ma-sonos-patch/helpers/tags.py
@@ -45,6 +46,7 @@ RUN set -eu; \
     python -c 'from music_assistant.helpers.app_vars import app_var; assert app_var("theaudiodb_api_key"); assert app_var("fanarttv_api_key"); assert app_var("lastfm_api_key")'; \
     install -m 644 /tmp/ma-sonos-patch/controllers/music/controller.py "${SITE_PACKAGES}/music_assistant/controllers/music/controller.py"; \
     install -m 644 /tmp/ma-sonos-patch/controllers/metadata/controller.py "${SITE_PACKAGES}/music_assistant/controllers/metadata/controller.py"; \
+    install -m 644 /tmp/ma-sonos-patch/controllers/player_queues/controller.py "${SITE_PACKAGES}/music_assistant/controllers/player_queues/controller.py"; \
     install -m 644 /tmp/ma-sonos-patch/controllers/music/media/playlists.py "${SITE_PACKAGES}/music_assistant/controllers/music/media/playlists.py"; \
     install -m 644 /tmp/ma-sonos-patch/controllers/music/media/tracks.py "${SITE_PACKAGES}/music_assistant/controllers/music/media/tracks.py"; \
     install -m 644 /tmp/ma-sonos-patch/helpers/tags.py "${SITE_PACKAGES}/music_assistant/helpers/tags.py"; \

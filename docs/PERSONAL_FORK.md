@@ -9,14 +9,14 @@ container is built, and how future upstream upgrades must be handled.
 Current personal version:
 
 ```text
-2.10.6.dev7
+2.10.7.dev1
 ```
 
 Upstream base:
 
 ```text
-Music Assistant 2.10.6
-c24866405bd2068c25a60e1014e5ef8c3f6445bb
+Music Assistant 2.10.7
+76ad754a68abdd0bfd179b13a2807d44771ddf90
 ```
 
 The `2.10.5.dev2` code was rebuilt from the official 2.10.5 commit as a clean base
@@ -45,6 +45,9 @@ matching the frontend's no-background-task sentinel and suppressing its false to
 container did not overlay those provider files and therefore retained the upstream
 runtime behaviour. `2.10.6.dev7` corrects the container overlay and adds a build-time
 assertion that the installed image contains the reconciliation implementation.
+`2.10.7.dev1` integrates official stable 2.10.7, retaining all personal behaviour.
+Sonic reconciliation now also retains upstream rebuild locking and failed-build retries;
+Last.fm local matching preserves upstream incomplete-search cache protection.
 Published versions use Git tags and matching container/add-on versions; they do not
 require new branches. Temporary development branches are merged into `main` after
 validation. GitHub's default branch and local tracking/comparison base must be `main`.
@@ -56,7 +59,7 @@ add-on catalog. Never overwrite a numbered release tag to deliver new code.
 The personal ARM64 image is published as:
 
 ```text
-ghcr.io/rpmlourenco/server:2.10.6.dev7
+ghcr.io/rpmlourenco/server:2.10.7.dev1
 ```
 
 ## Design principles
@@ -525,7 +528,7 @@ fork.
 `Dockerfile.personal` starts from the exact official stable image:
 
 ```dockerfile
-ARG UPSTREAM_VERSION=2.10.6
+ARG UPSTREAM_VERSION=2.10.7
 FROM ghcr.io/music-assistant/server:${UPSTREAM_VERSION}
 ```
 
@@ -580,7 +583,7 @@ ghcr.io/rpmlourenco/server:<personal-version>
 
 ## Current modified production files
 
-Relative to official 2.10.6, the current fork modifies these runtime files:
+Relative to official 2.10.7, the current fork modifies these runtime files:
 
 ```text
 music_assistant/constants.py

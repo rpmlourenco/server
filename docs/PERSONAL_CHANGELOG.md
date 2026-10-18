@@ -1,5 +1,17 @@
 # Personal Music Assistant changelog
 
+## 2.10.7.dev1
+
+- Integrate official stable 2.10.7 and use its exact container base.
+- Preserve local-edition matching, FLAC resolution, combined Similar Tracks,
+  Sonos HTTPS artwork, analysis sidecars, Sonic reconciliation, one-second
+  metadata pacing and synchronous single-track playlist additions.
+- Combine upstream Sonic rebuild locking and failed-build retries with analysis
+  replacement detection and forced Character reconstruction, including retries.
+- Retain upstream Last.fm incomplete-search protection so a local miss does not
+  become a permanent cached miss while providers are unavailable.
+- Validate Last.fm and Sonos regressions alongside the existing personal suites.
+
 ## 2.10.6.dev7
 
 - Install the Sonic Similarity reconciliation source into the personal container;
