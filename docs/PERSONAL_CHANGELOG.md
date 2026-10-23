@@ -1,5 +1,15 @@
 # Personal Music Assistant changelog
 
+## 2.10.8.dev1
+
+- Integrate official stable 2.10.8 and use its exact container base.
+- Preserve all personal local-edition, FLAC recommendation, Similar Tracks,
+  Sonos artwork, analysis sidecar, Sonic reconciliation, metadata pacing and
+  synchronous single-track playlist changes.
+- Combine upstream DSD PCM container sizing with the personal decoded-codec
+  override and precomputed analysis support.
+- Retain upstream playback, provider, queue and Home Assistant fixes.
+
 ## 2.10.7.dev1
 
 - Integrate official stable 2.10.7 and use its exact container base.

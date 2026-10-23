@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG UPSTREAM_VERSION=2.10.7
+ARG UPSTREAM_VERSION=2.10.8
 FROM ghcr.io/music-assistant/server:${UPSTREAM_VERSION}
 
 ARG PERSONAL_VERSION

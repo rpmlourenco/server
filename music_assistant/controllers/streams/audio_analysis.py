@@ -33,6 +33,7 @@ from music_assistant.constants import (
 )
 from music_assistant.controllers.streams.audio_buffer import AudioBufferDiscarded, AudioBufferEOF
 from music_assistant.helpers.api import api_command
+from music_assistant.helpers.audio import pcm_container_bit_depth
 from music_assistant.helpers.audio_analysis_sidecar import (
     AudioAnalysisSidecarError,
     read_audio_analysis_sidecar,
@@ -1206,10 +1207,12 @@ class AudioAnalysisController:
             return
 
         # Providers consume decoded PCM, not the source codec. Clear the decoder override
-        # as well, or their ffmpeg processes will try to decode PCM as compressed audio.
+        # and use the PCM container size so DSD sources are analyzed correctly.
+        source_bit_depth = streamdetails.audio_format.bit_depth
         pcm_format = dataclasses.replace(
             streamdetails.audio_format,
-            content_type=ContentType.from_bit_depth(streamdetails.audio_format.bit_depth),
+            content_type=ContentType.from_bit_depth(source_bit_depth),
+            bit_depth=pcm_container_bit_depth(source_bit_depth),
             codec_type=ContentType.UNKNOWN,
         )
 
