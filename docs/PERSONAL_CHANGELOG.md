@@ -1,5 +1,16 @@
 # Personal Music Assistant changelog
 
+## 2.10.9.dev1
+
+- Integrate official stable 2.10.9 and use its exact container base.
+- Preserve local-edition matching, local FLAC recommendations, combined Similar
+  Tracks, Sonos HTTPS artwork, analysis sidecars, Sonic reconciliation,
+  one-second metadata pacing and synchronous single-track playlist additions.
+- Retain upstream Sonic filtering for audiobooks, podcasts and radio alongside
+  the offline CPU/CUDA model and embedding device handling.
+- Include upstream Sendspin pairing, player availability and playback fixes.
+- Expand image validation to cover Sonic model setup and the complete queue suite.
+
 ## 2.10.8.dev1
 
 - Integrate official stable 2.10.8 and use its exact container base.

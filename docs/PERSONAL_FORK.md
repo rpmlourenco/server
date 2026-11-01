@@ -9,14 +9,14 @@ container is built, and how future upstream upgrades must be handled.
 Current personal version:
 
 ```text
-2.10.8.dev1
+2.10.9.dev1
 ```
 
 Upstream base:
 
 ```text
-Music Assistant 2.10.8
-24c14e8bf89de472ceb23ecbd33407bdfcccbd01
+Music Assistant 2.10.9
+912308ecfda2a01985dfcf555978815c7dda11a6
 ```
 
 The `2.10.5.dev2` code was rebuilt from the official 2.10.5 commit as a clean base
@@ -50,6 +50,8 @@ Sonic reconciliation now also retains upstream rebuild locking and failed-build 
 Last.fm local matching preserves upstream incomplete-search cache protection.
 `2.10.8.dev1` integrates official stable 2.10.8, preserving the personal patches
 and combining the DSD PCM container-size fix with decoded-codec handling and sidecars.
+`2.10.9.dev1` integrates official stable 2.10.9, preserving the personal patches
+and retaining upstream Sonic media-type filtering and playback/queue fixes.
 Published versions use Git tags and matching container/add-on versions; they do not
 require new branches. Temporary development branches are merged into `main` after
 validation. GitHub's default branch and local tracking/comparison base must be `main`.
@@ -61,7 +63,7 @@ add-on catalog. Never overwrite a numbered release tag to deliver new code.
 The personal ARM64 image is published as:
 
 ```text
-ghcr.io/rpmlourenco/server:2.10.8.dev1
+ghcr.io/rpmlourenco/server:2.10.9.dev1
 ```
 
 ## Design principles
@@ -530,7 +532,7 @@ fork.
 `Dockerfile.personal` starts from the exact official stable image:
 
 ```dockerfile
-ARG UPSTREAM_VERSION=2.10.8
+ARG UPSTREAM_VERSION=2.10.9
 FROM ghcr.io/music-assistant/server:${UPSTREAM_VERSION}
 ```
 
@@ -585,7 +587,7 @@ ghcr.io/rpmlourenco/server:<personal-version>
 
 ## Current modified production files
 
-Relative to official 2.10.8, the current fork modifies these runtime files:
+Relative to official 2.10.9, the current fork modifies these runtime files:
 
 ```text
 music_assistant/constants.py
